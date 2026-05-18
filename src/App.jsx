@@ -1,4 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { useMachine } from './hooks/useMachine';
+import MachineStatusDashboard from './components/MachineStatusDashboard';
+import JobBuilder from './components/JobBuilder';
+import ToolManagement from './components/ToolManagement';
+import CalibrationHelper from './components/CalibrationHelper';
 
 /* ────────────────────────────────────────────
    Maker Store extrusion catalog
@@ -74,28 +79,24 @@ const HOLE_TYPES = [
 function ProfileDiagram({ profile, selectedFace, onFaceSelect }) {
   const [w, h] = profile.size;
   const isCBeam = profile.id === '20-cbeam';
-  // Scale so largest dimension = 160px
   const scale = 160 / Math.max(w, h);
   const pw = w * scale;
   const ph = h * scale;
-  const pad = 32; // room for labels
+  const pad = 32;
 
   const svgW = pw + pad * 2;
   const svgH = ph + pad * 2;
 
-  // Draw faces: [top, right, bottom, left] — SVG coordinate order
   const rects = [
-    { x: pad, y: pad, w: pw, h: 4, face: 0, label: 'top' },          // top edge
-    { x: pad + pw, y: pad, w: 4, h: ph, face: 1, label: 'right' },    // right edge
-    { x: pad, y: pad + ph, w: pw, h: 4, face: 2, label: 'bottom' },   // bottom edge
-    { x: pad, y: pad, w: 4, h: ph, face: 3, label: 'left' },          // left edge
+    { x: pad, y: pad, w: pw, h: 4, face: 0, label: 'top' },
+    { x: pad + pw, y: pad, w: 4, h: ph, face: 1, label: 'right' },
+    { x: pad, y: pad + ph, w: pw, h: 4, face: 2, label: 'bottom' },
+    { x: pad, y: pad, w: 4, h: ph, face: 3, label: 'left' },
   ];
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className="profile-diagram" style={{ maxWidth: svgW }}>
-      {/* Cross-section fill */}
       {isCBeam ? (
-        // C-shape: top + right + bottom walls, left open
         <>
           <rect x={pad} y={pad} width={pw} height={ph * 0.2} fill="#d1d5db" rx={1} />
           <rect x={pad + pw * 0.75} y={pad} width={pw * 0.25} height={ph} fill="#d1d5db" rx={1} />
@@ -105,16 +106,15 @@ function ProfileDiagram({ profile, selectedFace, onFaceSelect }) {
         <rect x={pad} y={pad} width={pw} height={ph} fill="#e5e7eb" rx={3} />
       )}
 
-      {/* Clickable face zones — overlay rectangles with hit area */}
       {profile.faces.map((face, i) => {
         const isSelected = selectedFace?.id === face.id;
         const isDisabled = face.disabled;
         let rx, ry, rw, rh;
         switch (i) {
-          case 0: rx = pad; ry = pad - 12; rw = pw; rh = 24; break;           // top
-          case 1: rx = pad + pw; ry = pad; rw = 24; rh = ph; break;           // right
-          case 2: rx = pad; ry = pad + ph; rw = pw; rh = 24; break;           // bottom
-          case 3: rx = pad - 12; ry = pad; rw = 24; rh = ph; break;           // left
+          case 0: rx = pad; ry = pad - 12; rw = pw; rh = 24; break;
+          case 1: rx = pad + pw; ry = pad; rw = 24; rh = ph; break;
+          case 2: rx = pad; ry = pad + ph; rw = pw; rh = 24; break;
+          case 3: rx = pad - 12; ry = pad; rw = 24; rh = ph; break;
         }
         return (
           <g key={face.id}>
@@ -151,7 +151,6 @@ function ProfileDiagram({ profile, selectedFace, onFaceSelect }) {
         );
       })}
 
-      {/* Dimension lines */}
       <text x={pad + pw / 2} y={15} textAnchor="middle" fontSize={8} fill="#9ca3af">
         {w}mm
       </text>
@@ -163,9 +162,23 @@ function ProfileDiagram({ profile, selectedFace, onFaceSelect }) {
 }
 
 /* ────────────────────────────────────────────
+   Tab navigation
+   ──────────────────────────────────────────── */
+const TABS = [
+  { id: 'setup', label: 'Setup' },
+  { id: 'machine', label: 'Machine' },
+  { id: 'jobs', label: 'Jobs' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'calibrate', label: 'Calibrate' },
+];
+
+/* ────────────────────────────────────────────
    Main App
    ──────────────────────────────────────────── */
 export default function App() {
+  const { machine, error, actions, status } = useMachine();
+  const [activeTab, setActiveTab] = useState('setup');
+
   const [profileId, setProfileId] = useState(PROFILES[0].id);
   const [selectedFace, setSelectedFace] = useState(null);
   const [slotNum, setSlotNum] = useState(1);
@@ -175,12 +188,14 @@ export default function App() {
   const [fromEnd, setFromEnd] = useState(20);
   const [spacing, setSpacing] = useState(50);
 
+  const [operations, setOperations] = useState([]);
+  const [jobName, setJobName] = useState('');
+
   const profile = PROFILES.find(p => p.id === profileId) || PROFILES[0];
   const face = selectedFace;
   const availableHoles = HOLE_TYPES.filter(h => h.minSlot <= profile.slotWidth);
   const effectiveHole = availableHoles.find(h => h.id === holeType) || availableHoles[0];
 
-  // Generate the hole positions
   const positions = useMemo(() => {
     if (!face || face.slots === 0) return [];
     return Array.from({ length: holeCount }, (_, i) => ({
@@ -190,32 +205,46 @@ export default function App() {
     }));
   }, [holeCount, fromEnd, spacing, face, effectiveHole]);
 
-  // Export JSON for the drilling machine
-  const exportJSON = useMemo(() => {
-    if (!face) return '';
-    const steps = positions.map((p, i) => ({
-      step: i + 1,
-      type: 'hole',
-      label: effectiveHole.label,
-      distance_from_end_mm: p.distance,
-      params: HOLE_TYPES.find(h => h.id === holeType),
-    }));
-    return JSON.stringify({
+  const currentOperation = useMemo(() => {
+    if (!face) return null;
+    return {
       profile: profile.name,
       face: face.label,
       slot: slotNum,
       slot_width_mm: profile.slotWidth,
-      holes: steps,
-    }, null, 2);
+      holes: positions.map((p, i) => ({
+        step: i + 1,
+        type: 'hole',
+        label: effectiveHole.label,
+        distance_from_end_mm: p.distance,
+        params: HOLE_TYPES.find(h => h.id === holeType),
+      })),
+    };
   }, [profile, face, slotNum, positions, holeType, effectiveHole]);
 
+  const buildJob = () => {
+    const allOps = currentOperation ? [...operations, currentOperation] : operations;
+    return {
+      name: jobName || `job-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      operations: allOps,
+      holes: allOps.flatMap(op => op.holes || []),
+    };
+  };
+
   function downloadJSON() {
-    const blob = new Blob([exportJSON], { type: 'application/json' });
+    const job = buildJob();
+    const blob = new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `drill-${profile.name.replace('×', 'x')}-${face?.label?.replace(/[^a-z0-9]+/gi, '_') || 'face'}.json`;
+    a.download = `${job.name.replace(/[^a-z0-9]+/gi, '_')}.json`;
     a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  function sendToMachine() {
+    const job = buildJob();
+    actions.startJob(job);
   }
 
   function handleProfileChange(id) {
@@ -230,162 +259,267 @@ export default function App() {
     setSlotNum(1);
   }
 
+  function handleAddOperation(op) {
+    setOperations([...operations, op]);
+  }
+
+  function handleClearOperations() {
+    setOperations([]);
+  }
+
   return (
     <div className="app">
-      <header className="app-header"><h1>Drilling Machine</h1></header>
-      <main className="form">
+      <header className="app-header">
+        <h1>Drilling Machine Interface</h1>
+      </header>
 
-        {/* ── Profile ── */}
-        <div className="form-section">
-          <label htmlFor="sel-profile">Profile</label>
-          <select id="sel-profile"
-            className="select"
-            value={profileId}
-            onChange={e => handleProfileChange(e.target.value)}
+      {/* Machine error toast */}
+      {error && (
+        <div className="error-toast">
+          <span className="error-icon">!</span>
+          <span className="error-message">{error}</span>
+        </div>
+      )}
+
+      {/* Tab navigation */}
+      <nav className="tab-nav">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            {PROFILES.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.series}-series · {p.slotWidth}mm slot{p.type ? ` · ${p.type}` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
-        {/* ── Cross-section + face selector ── */}
-        <div className="form-section">
-          <label>Select face to drill</label>
-          <div className="diagram-wrap">
-            <ProfileDiagram
-              profile={profile}
-              selectedFace={selectedFace}
-              onFaceSelect={handleFaceSelect}
-            />
+      <main className="main-content">
+        {/* Connection hint */}
+        {!status.isConnected && (
+          <div className="connection-hint">
+            <span className="hint-icon">i</span>
+            <span className="hint-text">Machine not connected. Go to the <button className="hint-link" onClick={() => setActiveTab('machine')}>Machine</button> tab to connect and home.</span>
           </div>
-          {selectedFace && !selectedFace.disabled && (
-            <>
-              <div className="face-info">
-                {selectedFace.label} · {selectedFace.dim}mm · {selectedFace.slots} slot{selectedFace.slots !== 1 ? 's' : ''}
-              </div>
+        )}
 
-              {/* Slot picker — only when face has more than 1 slot */}
-              {selectedFace.slots > 1 && (
-                <div className="form-row" style={{ marginTop: 8 }}>
-                  <label htmlFor="sel-slot">Slot number</label>
-                  <select id="sel-slot"
-                    className="select"
-                    value={slotNum}
-                    onChange={e => setSlotNum(Number(e.target.value))}
-                  >
-                    {Array.from({ length: selectedFace.slots }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>Slot {i + 1}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* ── Hole parameters ── */}
-        {selectedFace && !selectedFace.disabled && (
-          <>
+        {/* Setup tab */}
+        {activeTab === 'setup' && (
+          <div className="form">
+            {/* Profile selection */}
             <div className="form-section">
-              <label htmlFor="sel-hole">Hole type</label>
-              <select id="sel-hole"
+              <label htmlFor="sel-profile">Profile</label>
+              <select id="sel-profile"
                 className="select"
-                value={holeType}
-                onChange={e => setHoleType(e.target.value)}
+                value={profileId}
+                onChange={e => handleProfileChange(e.target.value)}
               >
-                {availableHoles.map(h => (
-                  <option key={h.id} value={h.id}>{h.label}</option>
+                {PROFILES.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {p.series}-series · {p.slotWidth}mm slot{p.type ? ` · ${p.type}` : ''}
+                  </option>
                 ))}
               </select>
             </div>
 
-            <div className="form-section form-row-group">
-              <div className="form-row">
-                <label htmlFor="count-input">Number of holes</label>
-                <input id="count-input"
-                  type="number" min={1} max={50}
-                  value={holeCount}
-                  onChange={e => setHoleCount(Math.max(1, Number(e.target.value)))}
-                />
-              </div>
-              <div className="form-row">
-                <label htmlFor="from-input">From end (mm)</label>
-                <input id="from-input"
-                  type="number" min={0}
-                  value={fromEnd}
-                  onChange={e => setFromEnd(Number(e.target.value))}
-                />
-              </div>
-              <div className="form-row">
-                <label htmlFor="spacing-input">Spacing (mm)</label>
-                <input id="spacing-input"
-                  type="number" min={1}
-                  value={spacing}
-                  onChange={e => setSpacing(Math.max(1, Number(e.target.value)))}
-                />
-              </div>
-            </div>
-
-            {/* ── Preview ── */}
+            {/* Cross-section + face selector */}
             <div className="form-section">
-              <label>Preview — {positions.length} holes on {selectedFace.label}</label>
-              <div className="hole-preview">
-                <div className="hole-bar" style={{ width: '100%', position: 'relative', height: 40, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
-                  {/* Edge marker */}
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: '#d1d5db' }} />
-                  <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 3, background: '#d1d5db' }} />
-                  {/* Hole markers */}
-                  {positions.map((p, i) => {
-                    const maxDist = fromEnd + (holeCount - 1) * spacing;
-                    const pct = maxDist > 0 ? (p.distance / maxDist) * 100 : 0;
-                    return (
-                      <React.Fragment key={i}>
-                        <div
-                          style={{
-                            position: 'absolute',
-                            left: `${pct}%`,
-                            top: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            width: 14, height: 14,
-                            borderRadius: '50%',
-                            background: '#3b82f6',
-                            border: '2px solid white',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                          }}
-                          title={`${p.distance}mm — ${p.type}`}
-                        />
-                        <div style={{
-                          position: 'absolute',
-                          left: `${pct}%`,
-                          bottom: 2,
-                          transform: 'translateX(-50%)',
-                          fontSize: 8,
-                          color: '#6b7280',
-                        }}>
-                          {p.distance}mm
-                        </div>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-                <div className="preview-legend">
-                  <span>← {fromEnd}mm from end</span>
-                  <span>{spacing}mm spacing</span>
-                  <span>{effectiveHole.label}</span>
-                </div>
+              <label>Select face to drill</label>
+              <div className="diagram-wrap">
+                <ProfileDiagram
+                  profile={profile}
+                  selectedFace={selectedFace}
+                  onFaceSelect={handleFaceSelect}
+                />
               </div>
+              {selectedFace && !selectedFace.disabled && (
+                <>
+                  <div className="face-info">
+                    {selectedFace.label} · {selectedFace.dim}mm · {selectedFace.slots} slot{selectedFace.slots !== 1 ? 's' : ''}
+                  </div>
+
+                  {selectedFace.slots > 1 && (
+                    <div className="form-row" style={{ marginTop: 8 }}>
+                      <label htmlFor="sel-slot">Slot number</label>
+                      <select id="sel-slot"
+                        className="select"
+                        value={slotNum}
+                        onChange={e => setSlotNum(Number(e.target.value))}
+                      >
+                        {Array.from({ length: selectedFace.slots }, (_, i) => (
+                          <option key={i + 1} value={i + 1}>Slot {i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* ── Export ── */}
-            <div className="form-section export-bar">
-              <button className="btn-primary" onClick={downloadJSON} disabled={!face}>
-                Download JSON
-              </button>
-            </div>
-          </>
+            {/* Hole parameters */}
+            {selectedFace && !selectedFace.disabled && (
+              <>
+                <div className="form-section">
+                  <label htmlFor="sel-hole">Hole type</label>
+                  <select id="sel-hole"
+                    className="select"
+                    value={holeType}
+                    onChange={e => setHoleType(e.target.value)}
+                  >
+                    {availableHoles.map(h => (
+                      <option key={h.id} value={h.id}>{h.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-section form-row-group">
+                  <div className="form-row">
+                    <label htmlFor="count-input">Number of holes</label>
+                    <input id="count-input"
+                      type="number" min={1} max={50}
+                      value={holeCount}
+                      onChange={e => setHoleCount(Math.max(1, Number(e.target.value)))}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label htmlFor="from-input">From end (mm)</label>
+                    <input id="from-input"
+                      type="number" min={0}
+                      value={fromEnd}
+                      onChange={e => setFromEnd(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label htmlFor="spacing-input">Spacing (mm)</label>
+                    <input id="spacing-input"
+                      type="number" min={1}
+                      value={spacing}
+                      onChange={e => setSpacing(Math.max(1, Number(e.target.value)))}
+                    />
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="form-section">
+                  <label>Preview — {positions.length} holes on {selectedFace.label}</label>
+                  <div className="hole-preview">
+                    <div className="hole-bar" style={{ width: '100%', position: 'relative', height: 40, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: '#d1d5db' }} />
+                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 3, background: '#d1d5db' }} />
+                      {positions.map((p, i) => {
+                        const maxDist = fromEnd + (holeCount - 1) * spacing;
+                        const pct = maxDist > 0 ? (p.distance / maxDist) * 100 : 0;
+                        return (
+                          <React.Fragment key={i}>
+                            <div
+                              style={{
+                                position: 'absolute',
+                                left: `${pct}%`,
+                                top: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: 14, height: 14,
+                                borderRadius: '50%',
+                                background: '#3b82f6',
+                                border: '2px solid white',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                              }}
+                              title={`${p.distance}mm — ${p.type}`}
+                            />
+                            <div style={{
+                              position: 'absolute',
+                              left: `${pct}%`,
+                              bottom: 2,
+                              transform: 'translateX(-50%)',
+                              fontSize: 8,
+                              color: '#6b7280',
+                            }}>
+                              {p.distance}mm
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className="preview-legend">
+                      <span>← {fromEnd}mm from end</span>
+                      <span>{spacing}mm spacing</span>
+                      <span>{effectiveHole.label}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Export actions */}
+                <div className="form-section export-bar">
+                  <div className="export-actions">
+                    <button className="btn-secondary" onClick={downloadJSON}>
+                      Download JSON
+                    </button>
+                    <button
+                      className="btn-primary"
+                      onClick={sendToMachine}
+                      disabled={!status.canRun || !face}
+                    >
+                      {status.isRunning ? 'Running...' : 'Send to Machine'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Machine tab */}
+        {activeTab === 'machine' && (
+          <div className="machine-panel">
+            <MachineStatusDashboard machine={machine} actions={actions} status={status} />
+            {/* Machine control buttons */}
+            {status.isRunning && (
+              <div className="machine-controls">
+                <button className="btn-control btn-pause" onClick={actions.pauseJob}>
+                  Pause
+                </button>
+                <button className="btn-control btn-stop" onClick={actions.stopJob}>
+                  Stop
+                </button>
+                <button className="btn-control btn-estop" onClick={actions.emergencyStop}>
+                  E-STOP
+                </button>
+              </div>
+            )}
+            {status.isPaused && (
+              <div className="machine-controls">
+                <button className="btn-control btn-resume" onClick={actions.resumeJob}>
+                  Resume
+                </button>
+                <button className="btn-control btn-stop" onClick={actions.stopJob}>
+                  Stop
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Jobs tab */}
+        {activeTab === 'jobs' && (
+          <JobBuilder
+            currentOperation={currentOperation}
+            operations={operations}
+            onAddOperation={handleAddOperation}
+            onClear={handleClearOperations}
+          />
+        )}
+
+        {/* Tools tab */}
+        {activeTab === 'tools' && (
+          <ToolManagement machine={machine} />
+        )}
+
+        {/* Calibrate tab */}
+        {activeTab === 'calibrate' && (
+          <CalibrationHelper
+            machine={machine}
+            actions={actions}
+            status={status}
+          />
         )}
       </main>
     </div>

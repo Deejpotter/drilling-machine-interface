@@ -13,7 +13,7 @@ function selectFace() {
 describe('Drilling Machine App', () => {
   it('renders the header', () => {
     render(<App />);
-    expect(screen.getByText('Drilling Machine')).toBeInTheDocument();
+    expect(screen.getByText('Drilling Machine Interface')).toBeInTheDocument();
   });
 
   it('renders profile dropdown with all 8 options', () => {
