@@ -1,30 +1,16 @@
 /* ────────────────────────────────────────────
-   G-code generator — Patch subroutine style
-   Produces a standalone drilling script with
-   references to standard Patch subroutines.
-
-   Subroutines expected on the controller:
-     O1000 — Through hole (G81 peck drill cycle)
-     O1001 — Slot milling (G1 linear)
-     O1002 — Offset hole (spot drill + peck)
-     O1003 — M8 counterbore (G82)
+   G-code generator — Real Patch controller format
+   Produces a standalone drilling script matching
+   the actual machine's G-code structure.
    ──────────────────────────────────────────── */
 
-const SUB_CALLS = {
-  through: { sub: 'O1000', comment: 'Through hole drill (G81)' },
-  slot5:   { sub: 'O1001', comment: '5mm slot mill (G1)' },
-  offset:  { sub: 'O1002', comment: 'Offset hole (spot + peck)' },
-  'cbore-m8': { sub: 'O1003', comment: 'M8 counterbore (G82)' },
-};
+import { MACRO_CALLS, MACHINE_CONFIG } from './config.js';
 
 /**
- * @param {import('./constants').GcodeJob} job
- * @returns {string} full G-code script
+ * Generate custom G-code header
  */
-export function generateGcode(job) {
-  const lines = [];
+function generateHeader(job, lines) {
   const nc = (s) => lines.push(s);
-
   const date = new Date().toLocaleString();
 
   nc(`; ──────────────────────────────────────`);
@@ -34,41 +20,95 @@ export function generateGcode(job) {
   nc(`;  Total operations: ${job.operations.length}`);
   nc(`; ──────────────────────────────────────`);
   nc(``);
-  nc(`G17 G21 G40 G49 G80 G90   ; Safe startup`);
-  nc(`G91 G28 Z0                ; Tool to home`);
-  nc(`G90                        ; Absolute mode`);
+  nc(`M9                          ; Coolant off`);
+  nc(`G17                         ; Set XY plane`);
+  nc(`G21                         ; Set metric`);
+  nc(`G90                         ; Absolute positioning`);
+  nc(`G54 G0 Z${MACHINE_CONFIG.safeZ}                  ; Go to safe Z in G54`);
+  nc(`G54 G0 X0 Y0                ; Go to X0 Y0 in G54`);
+  nc(`; T1 M6                     ; Tool change (uncomment if needed)`);
+  nc(`S${MACHINE_CONFIG.spindleRPM} M3                   ; Start spindle @ ${MACHINE_CONFIG.spindleRPM} RPM`);
+  nc(`G54 G0 Z${MACHINE_CONFIG.safeZ}                  ; Safe Z`);
+  nc(`G10 L20 P2 X0 Y0 Z${MACHINE_CONFIG.safeZ}        ; Set G55 work offset`);
+  nc(`G4 P${MACHINE_CONFIG.spindleWaitMs}                       ; Wait for spindle to reach speed`);
   nc(``);
-  nc(`; ─── Tool call ───`);
-  nc(`T1 M6                     ; Select tool`);
-  nc(`S3000 M3                  ; Spindle on`);
-  nc(`G0 X0 Y0 Z50              ; Move to safe Z`);
+}
+
+/**
+ * Generate G-code for moving to a hole position
+ */
+function moveToHole(yPosition, lines) {
+  const nc = (s) => lines.push(s);
+  nc(`G55 G0 Z${MACHINE_CONFIG.safeZ}                ; Safe Z in G55`);
+  nc(`G55 G0 X0 Y${yPosition.toFixed(1)}   ; Move to hole Y position`);
+}
+
+/**
+ * Generate G-code for setting work offset and drilling a hole
+ */
+function drillHole(macro, lines) {
+  const nc = (s) => lines.push(s);
+  nc(`G10 L20 P3 X0 Y0 Z${MACHINE_CONFIG.featureZ}      ; Set G56 at this feature`);
+  nc(`M98 P${macro.p}            ; Call feature macro — ${macro.comment}`);
   nc(``);
+}
 
-  let opIndex = 0;
-  for (const op of job.operations) {
-    opIndex++;
-    const { profile, face, holes } = op;
-    nc(`; ─── ${profile} → ${face} · ${holes.length} holes ───`);
-    nc(`;  Slot width: ${op.slot_width_mm}mm`);
-
-    for (const hole of holes) {
-      const sub = SUB_CALLS[hole.holeType];
-      if (!sub) continue;
-      const x = hole.distance_from_end_mm;
-      nc(`G0 X${x.toFixed(1)} Y0 Z5    ; Hole ${hole.step} @ ${x.toFixed(1)}mm`);
-      nc(`${sub.sub}                   ; ${sub.comment}`);
-    }
-    nc(``);
-  }
-
-  nc(`; ─── Finish ───`);
-  nc(`G91 G28 Z0                ; Tool to home`);
-  nc(`M5                         ; Spindle stop`);
-  nc(`M30                        ; End`);
+/**
+ * Generate G-code footer
+ */
+function generateFooter(job, lines) {
+  const nc = (s) => lines.push(s);
+  nc(`G54 G0 Z${MACHINE_CONFIG.footerSafeZ}                  ; Safe Z in machine coords`);
+  nc(`M5                          ; Spindle off`);
+  nc(`G54 G0 X0 Y0                ; Return to machine zero`);
+  nc(`M30                         ; End of program`);
   nc(``);
   nc(`; ──────────────────────────────────────`);
   nc(`;  End of ${job.name}`);
   nc(`; ──────────────────────────────────────`);
+}
+
+/**
+ * @param {import('./constants').GcodeJob} job
+ * @returns {string} full G-code script
+ */
+export function generateGcode(job) {
+  const lines = [];
+
+  // ──────────────────────────────────────
+  // 1. Setup — Custom G-code header
+  // ──────────────────────────────────────
+  generateHeader(job, lines);
+
+  // ──────────────────────────────────────
+  // 2. Process each operation (one face/slot)
+  // ──────────────────────────────────────
+  for (const op of job.operations) {
+    const { profile, face, holes } = op;
+    lines.push(`; ─── ${profile} → ${face} · ${holes.length} holes ───`);
+    lines.push(`;  Slot width: ${op.slot_width_mm}mm`);
+    lines.push(``);
+
+    // ──────────────────────────────────────
+    // 3. For each hole: move, set offset, drill
+    // ──────────────────────────────────────
+    for (const hole of holes) {
+      const macro = MACRO_CALLS[hole.holeType];
+      if (!macro) continue;
+      const y = hole.distance_from_end_mm;
+
+      // Move to hole position
+      moveToHole(y, lines);
+
+      // Set G56 and call macro
+      drillHole(macro, lines);
+    }
+  }
+
+  // ──────────────────────────────────────
+  // 4. End — Custom G-code footer
+  // ──────────────────────────────────────
+  generateFooter(job, lines);
 
   return lines.join('\n');
 }

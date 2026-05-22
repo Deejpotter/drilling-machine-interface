@@ -34,33 +34,38 @@ describe('Drilling Machine App', () => {
     expect(document.getElementById('length-input')).toBeInTheDocument();
   });
 
-  it('excludes M8 counterbore from 20-series (6mm slot)', () => {
+  it('has all 4 hole types available for 20-series', () => {
     render(<App />);
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2020' } });
     const holeSelect = document.getElementById('sel-hole');
     const opts = Array.from(holeSelect.options).map(o => o.textContent);
-    expect(opts).not.toContain('M8 counterbore');
-    expect(opts).toContain('Through hole');
+    expect(opts).toContain('5mm hole');
     expect(opts).toContain('5mm slot');
-    expect(opts).toContain('Offset hole');
+    expect(opts).toContain('8mm hole');
+    expect(opts).toContain('12mm hole');
   });
 
-  it('includes M8 counterbore for 40-series (8mm slot)', () => {
+  it('shows order number input', () => {
     render(<App />);
-    fireEvent.change(document.getElementById('sel-profile'), { target: { value: '40-4040' } });
-    const holeSelect = document.getElementById('sel-hole');
-    const opts = Array.from(holeSelect.options).map(o => o.textContent);
-    expect(opts).toContain('M8 counterbore');
+    expect(document.getElementById('order-input')).toBeInTheDocument();
+  });
+
+  it('shows face selection dropdown', () => {
+    render(<App />);
+    expect(document.getElementById('sel-face')).toBeInTheDocument();
+  });
+
+  it('shows slot selection dropdown', () => {
+    render(<App />);
+    expect(document.getElementById('sel-slot')).toBeInTheDocument();
   });
 
   it('shows G-code preview when valid pattern is set', async () => {
     render(<App />);
     const countInput = document.getElementById('count-input');
     fireEvent.change(countInput, { target: { value: '3' } });
-    // G-code preview should appear
-    const previews = await screen.findAllByText('Preview');
-    expect(previews.length).toBeGreaterThanOrEqual(1);
-    const summaries = screen.getAllByText(/3 holes/);
+    // G-code preview should appear with the summary
+    const summaries = await screen.findAllByText(/3 holes.*1000mm extrusion/);
     expect(summaries.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -84,27 +89,28 @@ describe('Drilling Machine App', () => {
     render(<App />);
     fireEvent.change(document.getElementById('length-input'), { target: { value: '50' } });
     fireEvent.change(document.getElementById('count-input'), { target: { value: '5' } });
-    const btn = screen.getByText('Download G-code (.NC)');
+    const btn = screen.getByText(/Download.*Face 1.*Slot 1/);
     expect(btn).toBeDisabled();
   });
 
   it('download button is enabled for valid pattern', () => {
     render(<App />);
     // Defaults: 20×40, length=1000, count=4, fromEnd=20, spacing=50 -> last hole @ 170, fits
-    const btn = screen.getByText('Download G-code (.NC)');
+    const btn = screen.getByText(/Download.*Face 1.*Slot 1/);
     expect(btn).not.toBeDisabled();
   });
 
-  it('includes job name input', () => {
+  it('includes order number input instead of job name', () => {
     render(<App />);
-    expect(document.getElementById('job-name')).toBeInTheDocument();
+    expect(document.getElementById('order-input')).toBeInTheDocument();
+    expect(document.getElementById('job-name')).not.toBeInTheDocument();
   });
 
   it('renders G-code in preview for valid pattern', async () => {
     render(<App />);
     fireEvent.change(document.getElementById('count-input'), { target: { value: '2' } });
-    // Should contain safe startup block
-    const preview = await screen.findByText(/G17 G21/);
+    // Should contain custom header block
+    const preview = await screen.findByText(/G17.*Set XY plane/s);
     expect(preview).toBeInTheDocument();
   });
 

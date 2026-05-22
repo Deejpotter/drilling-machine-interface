@@ -1,26 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { generateGcode, downloadGcode } from './machine/gcodeGenerator';
-
-/* ────────────────────────────────────────────
-   Maker Store extrusion catalog
-   ──────────────────────────────────────────── */
-const PROFILES = [
-  { id: '20-2020', name: '20×20', series: 20, slotWidth: 6 },
-  { id: '20-2040', name: '20×40', series: 20, slotWidth: 6 },
-  { id: '20-2060', name: '20×60', series: 20, slotWidth: 6 },
-  { id: '20-2080', name: '20×80', series: 20, slotWidth: 6 },
-  { id: '20-cbeam', name: 'C-Beam 40×80', series: 20, slotWidth: 6 },
-  { id: '30-3030', name: '30×30', series: 30, slotWidth: 8 },
-  { id: '40-4040', name: '40×40', series: 40, slotWidth: 8 },
-  { id: '40-4080', name: '40×80', series: 40, slotWidth: 8 },
-];
-
-const HOLE_TYPES = [
-  { id: 'through', label: 'Through hole', minSlot: 6 },
-  { id: 'slot5', label: '5mm slot', minSlot: 6 },
-  { id: 'offset', label: 'Offset hole', minSlot: 6 },
-  { id: 'cbore-m8', label: 'M8 counterbore', minSlot: 8 },
-];
+import { EXTRUSION_PROFILES, HOLE_TYPES, MACHINE_CONFIG } from './machine/config';
 
 const DEFAULT_NAME = `drill-job-${Date.now()}`;
 
@@ -29,43 +9,61 @@ const DEFAULT_NAME = `drill-job-${Date.now()}`;
    ──────────────────────────────────────────── */
 export default function App() {
   const [profileId, setProfileId] = useState('20-2040');
-  const [materialLength, setMaterialLength] = useState(1000);
-  const [holeCount, setHoleCount] = useState(4);
-  const [fromEnd, setFromEnd] = useState(20);
-  const [spacing, setSpacing] = useState(50);
-  const [holeType, setHoleType] = useState('through');
-  const [jobName, setJobName] = useState('');
+  const [materialLength, setMaterialLength] = useState(MACHINE_CONFIG.defaultMaterialLength);
+  const [holeCount, setHoleCount] = useState(MACHINE_CONFIG.defaultHoleCount);
+  const [fromEnd, setFromEnd] = useState(MACHINE_CONFIG.defaultFromEnd);
+  const [spacing, setSpacing] = useState(MACHINE_CONFIG.defaultSpacing);
+  const [holeType, setHoleType] = useState('hole5');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [selectedFaceIndex, setSelectedFaceIndex] = useState(0);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
 
-  const profile = PROFILES.find(p => p.id === profileId) || PROFILES[0];
-  const availableHoles = HOLE_TYPES.filter(h => h.minSlot <= profile.slotWidth);
+  const profile = EXTRUSION_PROFILES.find(p => p.id === profileId) || EXTRUSION_PROFILES[0];
+  const face = profile.faces[selectedFaceIndex];
+  const slot = face.slots[selectedSlotIndex];
+  const availableHoles = HOLE_TYPES.filter(h => h.minSlot <= slot.width);
 
-  /* Build job object */
+  /* Build job object for current face/slot */
   const job = useMemo(() => {
     const holes = Array.from({ length: holeCount }, (_, i) => ({
       step: i + 1,
       holeType,
       distance_from_end_mm: fromEnd + i * spacing,
     }));
-    const name = jobName.trim() || DEFAULT_NAME;
+    
+    // Generate name: OrderNumber-Profile-Face-Slot-Date
+    // If no order number, use timestamp-based default
+    const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const name = orderNumber.trim() 
+      ? `${orderNumber.trim()}-${profile.name.replace(/×/g, 'x')}-F${face.id}-S${slot.id}-${dateStr}`
+      : `${DEFAULT_NAME}-${profile.name.replace(/×/g, 'x')}-F${face.id}-S${slot.id}-${dateStr}`;
+    
     return {
       name,
       materialLength,
       createdAt: new Date().toISOString(),
       operations: [{
         profile: profile.name,
-        face: '—',
-        slot: 1,
-        slot_width_mm: profile.slotWidth,
+        face: face.label,
+        faceId: face.id,
+        slot: slot.id,
+        slotPosition: slot.position,
+        slot_width_mm: slot.width,
         holes,
       }],
       holes,
     };
-  }, [profileId, materialLength, holeCount, fromEnd, spacing, holeType, jobName, profile]);
+  }, [profileId, materialLength, holeCount, fromEnd, spacing, holeType, orderNumber, profile, face, slot]);
 
   const gcode = useMemo(() => {
     if (job.holes.length === 0) return '';
     return generateGcode(job);
   }, [job]);
+
+  /* Positions for viz */
+  const holePositions = useMemo(() => {
+    return Array.from({ length: holeCount }, (_, i) => fromEnd + i * spacing);
+  }, [holeCount, fromEnd, spacing]);
 
   /* Validity */
   const lastHoleEnd = fromEnd + (holeCount - 1) * spacing + 20;
@@ -80,6 +78,16 @@ export default function App() {
 
       <main className="main-content">
         <div className="form">
+          {/* Order number */}
+          <div className="form-section">
+            <label htmlFor="order-input">Order Number</label>
+            <input id="order-input" type="text" className="select"
+              placeholder="e.g., ORD-12345"
+              value={orderNumber}
+              onChange={e => setOrderNumber(e.target.value)}
+            />
+          </div>
+
           {/* Profile */}
           <div className="form-section">
             <label htmlFor="sel-profile">Profile</label>
@@ -87,9 +95,42 @@ export default function App() {
               value={profileId}
               onChange={e => setProfileId(e.target.value)}
             >
-              {PROFILES.map(p => (
+              {EXTRUSION_PROFILES.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.name} · {p.series}-series · {p.slotWidth}mm slot
+                  {p.name} · {p.series}-series
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Face selection */}
+          <div className="form-section">
+            <label htmlFor="sel-face">Face</label>
+            <select id="sel-face" className="select"
+              value={selectedFaceIndex}
+              onChange={e => {
+                setSelectedFaceIndex(Number(e.target.value));
+                setSelectedSlotIndex(0);
+              }}
+            >
+              {profile.faces.map((f, idx) => (
+                <option key={f.id} value={idx}>
+                  {f.label} ({f.slots.length} slot{f.slots.length !== 1 ? 's' : ''})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Slot selection */}
+          <div className="form-section">
+            <label htmlFor="sel-slot">Slot</label>
+            <select id="sel-slot" className="select"
+              value={selectedSlotIndex}
+              onChange={e => setSelectedSlotIndex(Number(e.target.value))}
+            >
+              {face.slots.map((s, idx) => (
+                <option key={s.id} value={idx}>
+                  Slot {s.id} @ {s.position}mm from end ({s.width}mm wide)
                 </option>
               ))}
             </select>
@@ -142,16 +183,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Job name */}
-          <div className="form-section">
-            <label htmlFor="job-name">Job name (optional)</label>
-            <input id="job-name" type="text" className="select"
-              placeholder={DEFAULT_NAME}
-              value={jobName}
-              onChange={e => setJobName(e.target.value)}
-            />
-          </div>
-
           {/* Validity */}
           {!fits && (
             <div className="validity-error">
@@ -164,13 +195,55 @@ export default function App() {
             </div>
           )}
 
+          {/* Extrusion visualisation */}
+          {holeCount > 0 && (
+            <div className="form-section">
+              <label>Visualisation — {materialLength}mm extrusion, {holeCount} hole{holeCount !== 1 ? 's' : ''}</label>
+              <svg viewBox="0 0 340 64" className="extrusion-viz">
+                {/* Extrusion body */}
+                <rect x="6" y="4" width="328" height="56" rx="4" fill={fits ? '#e2e8f0' : '#fee2e2'} stroke={fits ? '#94a3b8' : '#fca5a5'} strokeWidth="1" />
+                {/* Extrusion end markers */}
+                <rect x="4" y="0" width="4" height="64" rx="1" fill={fits ? '#64748b' : '#ef4444'} />
+                <rect x="332" y="0" width="4" height="64" rx="1" fill={fits ? '#64748b' : '#ef4444'} />
+                {/* Hole dots — scale from 0 to materialLength across 328px */}
+                {holePositions.map((pos, i) => {
+                  const pct = pos / materialLength;
+                  const x = 4 + 328 * pct;
+                  const overrun = pos > materialLength;
+                  const holeDiameter = holeType === 'hole12' ? 12 : holeType === 'hole8' ? 8 : holeType === 'slot5' ? 5 : 6;
+                  const r = Math.max(4, holeDiameter * 0.5);
+                  return (
+                    <g key={i}>
+                      <circle cx={Math.min(x, 332)} cy="32" r={r}
+                        fill={overrun ? '#ef4444' : '#3b82f6'}
+                        stroke="white" strokeWidth="2"
+                      />
+                      <text x={Math.min(x, 332)} y="62" textAnchor="middle"
+                        fontSize="9" fill="#64748b" fontFamily="sans-serif">
+                        {pos}mm
+                      </text>
+                    </g>
+                  );
+                })}
+                {/* Material length label */}
+                <text x="170" y="49" textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
+                  {materialLength}mm
+                </text>
+              </svg>
+              <div className="viz-legend">
+                <span className="viz-legend-dot" style={{ background: '#3b82f6' }} /> {holeType === 'hole5' ? '5mm hole' : holeType === 'hole8' ? '8mm hole' : holeType === 'hole12' ? '12mm hole' : '5mm slot'}
+                <span className="viz-legend-label">{holeCount} × {spacing}mm spacing · first at {fromEnd}mm</span>
+              </div>
+            </div>
+          )}
+
           {/* Generate */}
           <div className="form-section export-bar">
             <button className="btn-primary"
               onClick={() => downloadGcode(job)}
               disabled={!fits || holeCount === 0}
             >
-              Download G-code (.NC)
+              Download {face.label} - Slot {slot.id} (.NC)
             </button>
           </div>
 
@@ -178,7 +251,7 @@ export default function App() {
           {gcode && (
             <div className="gcode-section">
               <div className="gcode-header">
-                <h3>Preview</h3>
+                <h3>Preview — {face.label}, Slot {slot.id}</h3>
                 <span className="gcode-summary">
                   {holeCount} hole{holeCount !== 1 ? 's' : ''} · {materialLength}mm extrusion
                 </span>
