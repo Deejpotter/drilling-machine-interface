@@ -85,7 +85,8 @@ export function generateGcode(job) {
   // ──────────────────────────────────────
   for (const op of job.operations) {
     const { profile, face, holes } = op;
-    lines.push(`; ─── ${profile} → ${face} · ${holes.length} holes ───`);
+    const slotTag = op.slot ? ` · S${op.slot}` : '';
+    lines.push(`; ─── ${profile} → ${face}${slotTag} · ${holes.length} holes ───`);
     lines.push(`;  Slot width: ${op.slot_width_mm}mm`);
     lines.push(``);
 
@@ -123,7 +124,10 @@ export function downloadGcode(job) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${job.name.replace(/[^a-z0-9]+/gi, '_')}.nc`;
+  const baseName = job.name.replace(/[^a-z0-9]+/gi, '_');
+  const isFallbackJob = /^drill_job_/i.test(baseName);
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 17);
+  a.download = `${isFallbackJob ? `${baseName}_${stamp}` : baseName}.nc`;
   a.click();
   a.remove();
   URL.revokeObjectURL(url);

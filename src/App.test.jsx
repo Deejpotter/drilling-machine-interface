@@ -5,6 +5,10 @@ import App from './App';
 import '@testing-library/jest-dom';
 
 describe('Drilling Machine App', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('renders the header', () => {
     render(<App />);
     expect(screen.getByText('Drilling Machine Interface')).toBeInTheDocument();
@@ -55,9 +59,9 @@ describe('Drilling Machine App', () => {
     expect(document.getElementById('sel-face')).toBeInTheDocument();
   });
 
-  it('shows slot selection dropdown', () => {
+  it('shows slot multi-selection controls', () => {
     render(<App />);
-    expect(document.getElementById('sel-slot')).toBeInTheDocument();
+    expect(document.getElementById('slot-multi')).toBeInTheDocument();
   });
 
   it('shows G-code preview when valid pattern is set', async () => {
@@ -89,15 +93,52 @@ describe('Drilling Machine App', () => {
     render(<App />);
     fireEvent.change(document.getElementById('length-input'), { target: { value: '50' } });
     fireEvent.change(document.getElementById('count-input'), { target: { value: '5' } });
-    const btn = screen.getByText(/Download.*Face 1.*Slot 1/);
+    const btn = screen.getByText(/Download F1 - S1/);
     expect(btn).toBeDisabled();
   });
 
   it('download button is enabled for valid pattern', () => {
     render(<App />);
     // Defaults: 20×40, length=1000, count=4, fromEnd=20, spacing=50 -> last hole @ 170, fits
-    const btn = screen.getByText(/Download.*Face 1.*Slot 1/);
+    const btn = screen.getByText(/Download F1 - S1/);
     expect(btn).not.toBeDisabled();
+  });
+
+  it('can apply pattern to multiple slots on one face', async () => {
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(document.getElementById('slot-add-btn'));
+    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    const preview = await screen.findByText(/extrusion · 2 slots/);
+    expect(preview).toBeInTheDocument();
+  });
+
+  it('can copy previous slot pattern values', async () => {
+    render(<App />);
+    const user = userEvent.setup();
+    fireEvent.change(document.getElementById('count-input'), { target: { value: '6' } });
+    fireEvent.change(document.getElementById('from-input'), { target: { value: '40' } });
+    fireEvent.change(document.getElementById('spacing-input'), { target: { value: '30' } });
+    await user.click(document.getElementById('slot-add-btn'));
+    const copyButtons = screen.getAllByRole('button', { name: 'Copy prev' });
+    await user.click(copyButtons[1]);
+
+    expect(document.getElementById('count-input-2').value).toBe('6');
+    expect(document.getElementById('from-input-2').value).toBe('40');
+    expect(document.getElementById('spacing-input-2').value).toBe('30');
+  });
+
+  it('restores profile and slot patterns from local storage', async () => {
+    const firstRender = render(<App />);
+    const user = userEvent.setup();
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-9001' } });
+    await user.click(document.getElementById('slot-add-btn'));
+    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    firstRender.unmount();
+
+    render(<App />);
+    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    expect(document.getElementById('order-input').value).toBe('ORD-9001');
   });
 
   it('includes order number input instead of job name', () => {

@@ -2,15 +2,32 @@
 
 G-code generator for the custom extrusion drilling machine.
 
-Produces production-ready G-code scripts (`.nc` files) using the actual machine controller format. Select a profile, choose face and slot, define the hole pattern, and download the G-code file.
+Produces production-ready G-code scripts (`.nc` files) using the actual machine controller format. Select a profile, choose face and one or more slots, define the hole pattern, and download the G-code file.
+
+## Current project state
+
+- Per-slot workflow is now the standard: add slot rows (S1, S2, etc.) on one face and configure each row independently.
+- Visualisation is intentionally minimal: one clean row per slot pattern with reduced label noise.
+- Setup is persisted in local storage so operators can refresh/reopen without re-entry.
+- Download naming uses order number when provided; fallback drill-job names are auto-uniqued at download time.
+
+## Stack and frameworks
+
+- Frontend: React + Vite
+- Tests: Vitest + Testing Library
+- Deployment: Docker + Nginx
+- No new framework was introduced in the latest updates.
 
 ## What it does
 
 - Select from 8 Maker Store extrusion profiles (20/30/40 series, C-Beam) with detailed slot configurations
-- Choose face (4 sides per extrusion) and specific slot within that face
+- Choose face (F1-F4) and one or more slots (S1, S2, etc.) on that face
 - Choose hole type (5mm hole, 5mm slot, 8mm hole, 12mm hole)
-- Set number of holes, offset from end, and spacing
+- Set number of holes, offset from end, and spacing per slot
+- Copy previous slot pattern with one click when adding similar rows
 - Enter material length — validates pattern won't overrun
+- Persists current setup in browser local storage
+- Uses a simplified per-slot visualisation with first/last hole labels for fast checks
 - **Generates production G-code with:**
   - Real machine controller format (G54/G55/G56 work offsets)
   - `M98 P` macro calls for feature operations
@@ -18,27 +35,27 @@ Produces production-ready G-code scripts (`.nc` files) using the actual machine 
   - Proper header/footer sequences
 - Preview generated script before download
 - Download as `.nc` file
-- **File naming:** `OrderNumber-Profile-Face-Slot-Date.nc`
-  - Example: `ORD-12345-20x40-Fface1-S1-20260522.nc`
+- **File naming:** `OrderNumber-Profile-F#-S#_S#-Date.nc`
+  - Example: `ORD-12345-20x40-F1-S1_S2-20260522.nc`
 
 ## Workflow
 
 1. Enter order number (e.g., `ORD-12345`)
 2. Select extrusion profile (e.g., `20×40`)
-3. Select face (e.g., `Face 1 (40mm side)`)
-4. Select slot (e.g., `Slot 1 @ 10mm from end`)
-5. Configure hole pattern (count, spacing, from-end offset)
-6. Download the `.nc` file for that face/slot
-7. Warehouse team runs the file, then rotates to next face/slot and repeats
+3. Select face (e.g., `F1`)
+4. Add one or more slot rows on that face (e.g., `S1` and `S2`)
+5. Configure each slot pattern independently (hole type, count, spacing, from-end offset)
+6. Download one `.nc` file for the selected face/slots
+7. Warehouse team runs the file, then rotates to next face and repeats
 
-**Note:** One file per face/slot combination. Process sequentially.
+**Note:** One file per face, with one or more selected slots. Process faces sequentially.
 
 ## Local development
 
 ```bash
 npm install
 npm run dev     # dev server at http://localhost:5173
-npm test        # run tests (26 passing)
+npm test        # run tests (29 passing)
 npm run build   # production build
 ```
 
