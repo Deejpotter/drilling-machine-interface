@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { generateGcode, downloadGcode } from './machine/gcodeGenerator';
+import { generateGcode, downloadGcode, saveGcodeWithPicker } from './machine/gcodeGenerator';
 import { EXTRUSION_PROFILES, HOLE_TYPES, MACHINE_CONFIG } from './machine/config';
 
 const STORAGE_KEY = 'drilling-machine-ui-state-v1';
@@ -77,6 +77,7 @@ export default function App() {
   const [selectedFaceIndex, setSelectedFaceIndex] = useState(initialState.selectedFaceIndex);
   const [slotPatterns, setSlotPatterns] = useState(initialState.slotPatterns);
   const [slotToAdd, setSlotToAdd] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   const profile = EXTRUSION_PROFILES.find(p => p.id === profileId) || EXTRUSION_PROFILES[0];
   const face = profile.faces[selectedFaceIndex];
@@ -111,6 +112,11 @@ export default function App() {
         slotPatterns,
       })
     );
+  }, [profileId, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
+
+  useEffect(() => {
+    if (!saveMessage) return;
+    setSaveMessage('');
   }, [profileId, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
 
   /* Build job object for current face with one or more independently-configured slots */
@@ -225,6 +231,39 @@ export default function App() {
       if (prev.length === 1) return prev;
       return prev.filter(row => row.slotId !== slotId);
     });
+  };
+
+  const handleSaveToDrive = async () => {
+    setSaveMessage('');
+    try {
+      const fileName = await saveGcodeWithPicker(job);
+      setSaveMessage(`Saved ${fileName}.`);
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setSaveMessage('Save canceled.');
+        return;
+      }
+      if (error?.code === 'NO_FILE_PICKER_API') {
+        setSaveMessage('Save-to-drive is not supported in this browser. Use Download instead.');
+        return;
+      }
+      setSaveMessage('Save failed. Use Download instead.');
+    }
+  };
+
+  const handleResetJob = () => {
+    const defaultProfile = EXTRUSION_PROFILES.find(p => p.id === '20-2040') || EXTRUSION_PROFILES[0];
+    const defaultFace = defaultProfile.faces[0];
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+    setProfileId(defaultProfile.id);
+    setMaterialLength(MACHINE_CONFIG.defaultMaterialLength);
+    setOrderNumber('');
+    setSelectedFaceIndex(0);
+    setSlotPatterns([createDefaultPattern(defaultFace.slots[0].id)]);
+    setSlotToAdd(defaultFace.slots[1] ? String(defaultFace.slots[1].id) : '');
+    setSaveMessage('');
   };
 
   const copyPreviousPattern = (slotId) => {
@@ -494,12 +533,28 @@ export default function App() {
 
           {/* Generate */}
           <div className="form-section export-bar">
-            <button className="btn-primary"
-              onClick={() => downloadGcode(job)}
-              disabled={!fits || slotPatternsSorted.length === 0}
-            >
-              Download F{faceNumber} - {selectedSlotTags.join(', ')} (.NC)
-            </button>
+            <div className="export-actions">
+              <button className="btn-primary"
+                onClick={() => downloadGcode(job)}
+                disabled={!fits || slotPatternsSorted.length === 0}
+              >
+                Download F{faceNumber} - {selectedSlotTags.join(', ')} (.NC)
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleSaveToDrive}
+                disabled={!fits || slotPatternsSorted.length === 0}
+              >
+                Save to drive (choose Z:)
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleResetJob}
+              >
+                New job (clear saved state)
+              </button>
+            </div>
+            {saveMessage && <div className="save-message">{saveMessage}</div>}
           </div>
 
           {/* Preview */}

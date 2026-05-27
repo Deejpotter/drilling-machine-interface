@@ -114,6 +114,13 @@ export function generateGcode(job) {
   return lines.join('\n');
 }
 
+function buildBaseFilename(job) {
+  const baseName = job.name.replace(/[^a-z0-9]+/gi, '_');
+  const isFallbackJob = /^drill_job_/i.test(baseName);
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 17);
+  return isFallbackJob ? `${baseName}_${stamp}` : baseName;
+}
+
 /**
  * Generate g-code and download as .nc file
  * @param {import('./constants').GcodeJob} job
@@ -124,11 +131,33 @@ export function downloadGcode(job) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const baseName = job.name.replace(/[^a-z0-9]+/gi, '_');
-  const isFallbackJob = /^drill_job_/i.test(baseName);
-  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 17);
-  a.download = `${isFallbackJob ? `${baseName}_${stamp}` : baseName}.nc`;
+  a.download = `${buildBaseFilename(job)}.nc`;
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Save g-code using system file picker (e.g. choose Z: drive)
+ * @param {import('./constants').GcodeJob} job
+ */
+export async function saveGcodeWithPicker(job) {
+  if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') {
+    const err = new Error('File picker API unavailable');
+    err.code = 'NO_FILE_PICKER_API';
+    throw err;
+  }
+
+  const gcode = generateGcode(job);
+  const handle = await window.showSaveFilePicker({
+    suggestedName: `${buildBaseFilename(job)}.nc`,
+    types: [{
+      description: 'NC files',
+      accept: { 'text/plain': ['.nc'] },
+    }],
+  });
+  const writable = await handle.createWritable();
+  await writable.write(gcode);
+  await writable.close();
+  return handle.name || `${buildBaseFilename(job)}.nc`;
 }

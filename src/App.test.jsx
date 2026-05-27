@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
@@ -102,6 +102,77 @@ describe('Drilling Machine App', () => {
     // Defaults: 20×40, length=1000, count=4, fromEnd=20, spacing=50 -> last hole @ 170, fits
     const btn = screen.getByText(/Download F1 - S1/);
     expect(btn).not.toBeDisabled();
+  });
+
+  it('shows save-to-drive button', () => {
+    render(<App />);
+    expect(screen.getByRole('button', { name: /Save to drive/ })).toBeInTheDocument();
+  });
+
+  it('shows fallback message when save-to-drive is unsupported', async () => {
+    render(<App />);
+    const user = userEvent.setup();
+    const originalPicker = window.showSaveFilePicker;
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+
+    await user.click(screen.getByRole('button', { name: /Save to drive/ }));
+    expect(screen.getByText(/not supported in this browser/i)).toBeInTheDocument();
+
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      value: originalPicker,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('shows success message when save-to-drive completes', async () => {
+    render(<App />);
+    const user = userEvent.setup();
+    const originalPicker = window.showSaveFilePicker;
+    const mockWritable = {
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockHandle = {
+      name: 'ORD-1-F1.nc',
+      createWritable: vi.fn().mockResolvedValue(mockWritable),
+    };
+    const pickerMock = vi.fn().mockResolvedValue(mockHandle);
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      value: pickerMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await user.click(screen.getByRole('button', { name: /Save to drive/ }));
+    expect(await screen.findByText(/Saved ORD-1-F1.nc\./)).toBeInTheDocument();
+    expect(pickerMock).toHaveBeenCalled();
+    expect(mockHandle.createWritable).toHaveBeenCalled();
+
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      value: originalPicker,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('resets to default job state', async () => {
+    render(<App />);
+    const user = userEvent.setup();
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-RESET' } });
+    await user.click(document.getElementById('slot-add-btn'));
+    expect(document.getElementById('count-input-2')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /New job/ }));
+
+    expect(document.getElementById('order-input').value).toBe('');
+    expect(document.getElementById('sel-profile').value).toBe('20-2040');
+    expect(document.getElementById('count-input-2')).not.toBeInTheDocument();
+    expect(screen.getByText(/Download F1 - S1/)).toBeInTheDocument();
   });
 
   it('can apply pattern to multiple slots on one face', async () => {

@@ -35,6 +35,7 @@ Produces production-ready G-code scripts (`.nc` files) using the actual machine 
   - Proper header/footer sequences
 - Preview generated script before download
 - Download as `.nc` file
+- Save directly via system file picker (choose local folder or mapped `Z:` drive)
 - **File naming:** `OrderNumber-Profile-F#-S#_S#-Date.nc`
   - Example: `ORD-12345-20x40-F1-S1_S2-20260522.nc`
 
@@ -45,8 +46,11 @@ Produces production-ready G-code scripts (`.nc` files) using the actual machine 
 3. Select face (e.g., `F1`)
 4. Add one or more slot rows on that face (e.g., `S1` and `S2`)
 5. Configure each slot pattern independently (hole type, count, spacing, from-end offset)
-6. Download one `.nc` file for the selected face/slots
+6. Save the `.nc` file using either:
+  - **Download F# - S# (.NC)** for standard browser download
+  - **Save to drive (choose Z:)** to save directly to a mapped drive (e.g., `Z:`)
 7. Warehouse team runs the file, then rotates to next face and repeats
+8. Use **New job (clear saved state)** when starting a new order from defaults
 
 **Note:** One file per face, with one or more selected slots. Process faces sequentially.
 
@@ -55,7 +59,7 @@ Produces production-ready G-code scripts (`.nc` files) using the actual machine 
 ```bash
 npm install
 npm run dev     # dev server at http://localhost:5173
-npm test        # run tests (29 passing)
+npm test        # run tests (31 passing)
 npm run build   # production build
 ```
 
@@ -76,7 +80,8 @@ The container serves the Vite build through Nginx with SPA routing enabled.
 
 Each profile includes detailed face and slot data:
 
-### 20×40 example:
+### 20×40 example
+
 - **Face 1 (40mm side):** 2 slots @ 10mm and 30mm from end
 - **Face 2 (20mm side):** 1 slot @ 10mm from end
 - **Face 3 (40mm side):** 2 slots @ 10mm and 30mm from end
@@ -90,17 +95,20 @@ All profiles include width, height, and slot positions in `src/machine/config.js
 Generated files follow the actual machine controller format:
 
 **Header:**
+
 - Coolant off, metric mode, absolute positioning
 - Safe Z movement in G54
 - Spindle start @ 19,200 RPM
 - Set G55 work offset
 
 **Per-hole sequence:**
+
 - Move to hole Y position in G55
 - Set G56 at feature position
 - Call feature macro via `M98 P####`
 
 **Footer:**
+
 - Safe Z in machine coords (G54)
 - Spindle off
 - Return to machine zero
