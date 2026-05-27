@@ -149,10 +149,8 @@ export const EXTRUSION_PROFILES = [
         ]
       },
       {
-        id: 'face3', label: 'Face 3 (80mm side)', width: 80, slots: [
+        id: 'face3', label: 'Face 3 (80mm side — outer slots only)', width: 80, slots: [
           { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
           { id: 4, position: 70, width: 6.25 },
         ]
       },
