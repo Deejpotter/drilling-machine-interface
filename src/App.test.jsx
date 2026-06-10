@@ -14,16 +14,16 @@ describe('Drilling Machine App', () => {
     expect(screen.getByText('Drilling Machine Interface')).toBeInTheDocument();
   });
 
-  it('renders profile dropdown with all 8 options', () => {
+  it('renders profile dropdown with 2 options in simple mode', () => {
     render(<App />);
     const select = document.getElementById('sel-profile');
     expect(select).toBeInTheDocument();
-    expect(select.options.length).toBe(8);
+    expect(select.options.length).toBe(2);
   });
 
-  it('defaults to 20×40 profile', () => {
+  it('defaults to 40×40 profile in simple mode', () => {
     render(<App />);
-    expect(document.getElementById('sel-profile').value).toBe('20-2040');
+    expect(document.getElementById('sel-profile').value).toBe('40-4040');
   });
 
   it('shows hole count, spacing, and from-end inputs', () => {
@@ -38,15 +38,16 @@ describe('Drilling Machine App', () => {
     expect(document.getElementById('length-input')).toBeInTheDocument();
   });
 
-  it('has all 4 hole types available for 20-series', () => {
+  it('has all 6 hole types available in simple mode', () => {
     render(<App />);
-    fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2020' } });
     const holeSelect = document.getElementById('sel-hole');
     const opts = Array.from(holeSelect.options).map(o => o.textContent);
-    expect(opts).toContain('5mm hole');
-    expect(opts).toContain('5mm slot');
-    expect(opts).toContain('8mm hole');
-    expect(opts).toContain('12mm hole');
+    expect(opts).toContain('Single hole (7mm)');
+    expect(opts).toContain('Double hole (7mm)');
+    expect(opts).toContain('Slotted hole (7mm)');
+    expect(opts).toContain('M8 Counterbore');
+    expect(opts).toContain('Central Connector');
+    expect(opts).toContain('Anchor Fast');
   });
 
   it('shows order number input', () => {
@@ -164,29 +165,32 @@ describe('Drilling Machine App', () => {
     render(<App />);
     const user = userEvent.setup();
     fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-RESET' } });
-    await user.click(document.getElementById('slot-add-btn'));
-    expect(document.getElementById('count-input-2')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /New job/ }));
 
     expect(document.getElementById('order-input').value).toBe('');
-    expect(document.getElementById('sel-profile').value).toBe('20-2040');
-    expect(document.getElementById('count-input-2')).not.toBeInTheDocument();
+    expect(document.getElementById('sel-profile').value).toBe('40-4040');
     expect(screen.getByText(/Download F1 - S1/)).toBeInTheDocument();
   });
 
-  it('can apply pattern to multiple slots on one face', async () => {
+  it('can apply pattern to multiple slots on one face (advanced mode)', async () => {
     render(<App />);
     const user = userEvent.setup();
+    // Switch to advanced mode to get 20×40 with 2 slots
+    await user.click(screen.getByText(/Simple/));
+    fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     await user.click(document.getElementById('slot-add-btn'));
     expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
     const preview = await screen.findByText(/extrusion · 2 slots/);
     expect(preview).toBeInTheDocument();
   });
 
-  it('can copy previous slot pattern values', async () => {
+  it('can copy previous slot pattern values (advanced mode)', async () => {
     render(<App />);
     const user = userEvent.setup();
+    // Switch to advanced mode to get 20×40 with 2 slots
+    await user.click(screen.getByText(/Simple/));
+    fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     fireEvent.change(document.getElementById('count-input'), { target: { value: '6' } });
     fireEvent.change(document.getElementById('from-input'), { target: { value: '40' } });
     fireEvent.change(document.getElementById('spacing-input'), { target: { value: '30' } });
@@ -202,12 +206,16 @@ describe('Drilling Machine App', () => {
   it('restores profile and slot patterns from local storage', async () => {
     const firstRender = render(<App />);
     const user = userEvent.setup();
+    // Switch to advanced mode, select 20×40, add second slot
+    await user.click(screen.getByText(/Simple/));
+    fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-9001' } });
     await user.click(document.getElementById('slot-add-btn'));
     expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
     firstRender.unmount();
 
     render(<App />);
+    // Should restore advanced mode, 20×40 profile, S1+S2
     expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
     expect(document.getElementById('order-input').value).toBe('ORD-9001');
   });

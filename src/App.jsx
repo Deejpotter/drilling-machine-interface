@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { generateGcode, downloadGcode, saveGcodeWithPicker } from './machine/gcodeGenerator';
-import { EXTRUSION_PROFILES, HOLE_TYPES, MACHINE_CONFIG } from './machine/config';
+import { EXTRUSION_PROFILES, HOLE_TYPES, FEATURE_CONFIG, MACHINE_CONFIG } from './machine/config';
 
-const STORAGE_KEY = 'drilling-machine-ui-state-v1';
+const STORAGE_KEY = 'drilling-machine-ui-state-v2';
+const MODE_KEY = 'drilling-machine-mode';
 
 function createDefaultPattern(slotId) {
   return {
     slotId,
-    holeType: 'hole5',
+    holeType: 'single-hole',
     holeCount: MACHINE_CONFIG.defaultHoleCount,
     fromEnd: MACHINE_CONFIG.defaultFromEnd,
     spacing: MACHINE_CONFIG.defaultSpacing,
@@ -15,10 +16,11 @@ function createDefaultPattern(slotId) {
 }
 
 function getInitialState() {
-  const fallbackProfile = EXTRUSION_PROFILES.find(p => p.id === '20-2040') || EXTRUSION_PROFILES[0];
+  const fallbackProfile = EXTRUSION_PROFILES.find(p => p.id === '40-4040') || EXTRUSION_PROFILES.find(p => p.id === '20-2040') || EXTRUSION_PROFILES[0];
   const fallbackFaceIndex = 0;
   const fallbackFace = fallbackProfile.faces[fallbackFaceIndex];
   const defaults = {
+    mode: 'simple',
     profileId: fallbackProfile.id,
     materialLength: MACHINE_CONFIG.defaultMaterialLength,
     orderNumber: '',
@@ -29,10 +31,16 @@ function getInitialState() {
   if (typeof window === 'undefined') return defaults;
 
   try {
+    const savedMode = window.localStorage.getItem(MODE_KEY);
+    const mode = (savedMode === 'simple' || savedMode === 'advanced') ? savedMode : 'simple';
+    const enabledProfiles = FEATURE_CONFIG[mode].profiles;
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaults;
+    if (!raw) return { ...defaults, mode };
     const parsed = JSON.parse(raw);
-    const profile = EXTRUSION_PROFILES.find(p => p.id === parsed.profileId) || fallbackProfile;
+    // If saved profile isn't in current mode's allowed list, fall back
+    const profile = enabledProfiles.includes(parsed.profileId)
+      ? EXTRUSION_PROFILES.find(p => p.id === parsed.profileId)
+      : EXTRUSION_PROFILES.find(p => p.id === enabledProfiles[0]) || fallbackProfile;
     const faceIndex = Number.isInteger(parsed.selectedFaceIndex)
       ? Math.min(Math.max(parsed.selectedFaceIndex, 0), profile.faces.length - 1)
       : 0;
@@ -46,7 +54,7 @@ function getInitialState() {
             seen.add(row.slotId);
             return {
               slotId: row.slotId,
-              holeType: typeof row.holeType === 'string' ? row.holeType : 'hole5',
+              holeType: typeof row.holeType === 'string' ? row.holeType : 'single-hole',
               holeCount: Math.max(1, Number(row.holeCount) || MACHINE_CONFIG.defaultHoleCount),
               fromEnd: Math.max(0, Number(row.fromEnd) || MACHINE_CONFIG.defaultFromEnd),
               spacing: Math.max(1, Number(row.spacing) || MACHINE_CONFIG.defaultSpacing),
@@ -55,6 +63,7 @@ function getInitialState() {
       : [];
 
     return {
+      mode,
       profileId: profile.id,
       materialLength: Math.max(10, Number(parsed.materialLength) || MACHINE_CONFIG.defaultMaterialLength),
       orderNumber: typeof parsed.orderNumber === 'string' ? parsed.orderNumber : '',
@@ -71,6 +80,7 @@ function getInitialState() {
    ──────────────────────────────────────────── */
 export default function App() {
   const initialState = useMemo(() => getInitialState(), []);
+  const [mode, setMode] = useState(initialState.mode);
   const [profileId, setProfileId] = useState(initialState.profileId);
   const [materialLength, setMaterialLength] = useState(initialState.materialLength);
   const [orderNumber, setOrderNumber] = useState(initialState.orderNumber);
@@ -79,12 +89,38 @@ export default function App() {
   const [slotToAdd, setSlotToAdd] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
 
-  const profile = EXTRUSION_PROFILES.find(p => p.id === profileId) || EXTRUSION_PROFILES[0];
+  // Filter profiles and hole types by current mode
+  const enabledProfileIds = FEATURE_CONFIG[mode].profiles;
+  const enabledHoleTypeIds = FEATURE_CONFIG[mode].holeTypes;
+  const filteredProfiles = EXTRUSION_PROFILES.filter(p => enabledProfileIds.includes(p.id));
+  const filteredHoleTypes = HOLE_TYPES.filter(h => enabledHoleTypeIds.includes(h.id));
+
+  // If current profile isn't in filtered list, reset to first available
+  const profile = filteredProfiles.find(p => p.id === profileId) || filteredProfiles[0];
   const face = profile.faces[selectedFaceIndex];
   const faceNumber = selectedFaceIndex + 1;
   const slotMap = new Map(face.slots.map(s => [s.id, s]));
   const slotPatternsSorted = [...slotPatterns].sort((a, b) => a.slotId - b.slotId);
   const selectedSlotTags = slotPatternsSorted.map(p => `S${p.slotId}`);
+
+  // When mode changes, ensure profile is valid
+  useEffect(() => {
+    if (!enabledProfileIds.includes(profileId)) {
+      setProfileId(enabledProfileIds[0]);
+      setSelectedFaceIndex(0);
+    }
+  }, [mode, enabledProfileIds, profileId]);
+
+  // Persist mode to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(MODE_KEY, mode);
+  }, [mode]);
+
+  // Toggle mode handler
+  const toggleMode = () => {
+    setMode(m => m === 'simple' ? 'advanced' : 'simple');
+  };
 
   useEffect(() => {
     setSlotPatterns(prev => {
@@ -105,19 +141,19 @@ export default function App() {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        profileId,
+        profileId: profile.id,
         materialLength,
         orderNumber,
         selectedFaceIndex,
         slotPatterns,
       })
     );
-  }, [profileId, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
+  }, [profile.id, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
 
   useEffect(() => {
     if (!saveMessage) return;
     setSaveMessage('');
-  }, [profileId, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
+  }, [profile.id, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
 
   /* Build job object for current face with one or more independently-configured slots */
   const job = useMemo(() => {
@@ -167,7 +203,7 @@ export default function App() {
     return slotPatternsSorted.map((pattern, index) => {
       const slot = slotMap.get(pattern.slotId);
       const holePositions = Array.from({ length: pattern.holeCount }, (_, i) => pattern.fromEnd + i * pattern.spacing);
-      const holeDiameter = pattern.holeType === 'hole12' ? 12 : pattern.holeType === 'hole8' ? 8 : pattern.holeType === 'slot5' ? 5 : 6;
+      const holeDiameter = pattern.holeType === 'm8-counterbore' ? 12 : pattern.holeType === 'double-hole' ? 7 : pattern.holeType === 'slotted-hole' ? 7 : 7;
       const rowColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index % 4];
 
       return {
@@ -252,7 +288,7 @@ export default function App() {
   };
 
   const handleResetJob = () => {
-    const defaultProfile = EXTRUSION_PROFILES.find(p => p.id === '20-2040') || EXTRUSION_PROFILES[0];
+    const defaultProfile = filteredProfiles.find(p => p.id === '40-4040') || filteredProfiles[0];
     const defaultFace = defaultProfile.faces[0];
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -283,6 +319,14 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Drilling Machine Interface</h1>
+        <button
+          type="button"
+          className="mode-toggle"
+          onClick={toggleMode}
+          title="Switch between simple and advanced mode"
+        >
+          {mode === 'simple' ? '⚙ Simple' : '⚙ Advanced'}
+        </button>
       </header>
 
       <main className="main-content">
@@ -301,15 +345,15 @@ export default function App() {
           <div className="form-section">
             <label htmlFor="sel-profile">Profile</label>
             <select id="sel-profile" className="select"
-              value={profileId}
+              value={profile.id}
               onChange={e => {
-                const nextProfile = EXTRUSION_PROFILES.find(p => p.id === e.target.value) || EXTRUSION_PROFILES[0];
+                const nextProfile = filteredProfiles.find(p => p.id === e.target.value) || filteredProfiles[0];
                 setProfileId(nextProfile.id);
                 setSelectedFaceIndex(0);
                 setSlotPatterns([createDefaultPattern(nextProfile.faces[0].slots[0].id)]);
               }}
             >
-              {EXTRUSION_PROFILES.map(p => (
+              {filteredProfiles.map(p => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {p.series}-series
                 </option>
@@ -371,7 +415,7 @@ export default function App() {
             <div id="slot-multi" className="slot-checklist">
               {slotPatternsSorted.map((pattern, index) => {
                 const slot = slotMap.get(pattern.slotId);
-                const availableHoles = HOLE_TYPES.filter(h => h.minSlot <= (slot?.width || 0));
+                const availableHoles = filteredHoleTypes.filter(h => h.minSlot <= (slot?.width || 0));
                 const rowClearance = slotFitChecks.find(check => check.slotId === pattern.slotId)?.clearanceEnd ?? 0;
                 return (
                   <div key={pattern.slotId} className="slot-pattern-row">

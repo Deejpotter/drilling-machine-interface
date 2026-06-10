@@ -5,12 +5,6 @@
    ──────────────────────────────────────────── */
 
 /* ────────────────────────────────────────────
-   Machine configuration
-   Abstracts profiles, hole types, and macro mappings
-   so they can be easily updated without code changes.
-   ──────────────────────────────────────────── */
-
-/* ────────────────────────────────────────────
    Extrusion profiles with full dimensional data
    Each face has slots with positions (center from end)
    ──────────────────────────────────────────── */
@@ -223,32 +217,73 @@ export const EXTRUSION_PROFILES = [
   },
 ];
 
+/* ────────────────────────────────────────────
+   Feature toggle — simple vs advanced mode
+   Simple = 40-series only with Patch's macros
+   Advanced = all profiles, all hole types
+   ──────────────────────────────────────────── */
+export const FEATURE_CONFIG = {
+  simple: {
+    profiles: ['40-4040', '40-4080'],
+    holeTypes: ['single-hole', 'double-hole', 'slotted-hole', 'm8-counterbore', 'central-connector', 'anchor-fast'],
+  },
+  advanced: {
+    profiles: EXTRUSION_PROFILES.map(p => p.id),
+    holeTypes: ['single-hole', 'double-hole', 'slotted-hole', 'm8-counterbore', 'central-connector', 'anchor-fast'],
+  },
+};
+
+/* ────────────────────────────────────────────
+   Hole types — semantic IDs matching Patch's features
+   ──────────────────────────────────────────── */
 export const HOLE_TYPES = [
-  { id: 'hole5', label: '5mm hole', minSlot: 6 },
-  { id: 'slot5', label: '5mm slot', minSlot: 6 },
-  { id: 'hole8', label: '8mm hole', minSlot: 6 },
-  { id: 'hole12', label: '12mm hole', minSlot: 6 },
+  { id: 'single-hole', label: 'Single hole (7mm)', description: 'One hole per position', minSlot: 6 },
+  { id: 'double-hole', label: 'Double hole (7mm)', description: 'Two holes, 40mm apart', minSlot: 6 },
+  { id: 'slotted-hole', label: 'Slotted hole (7mm)', description: 'Elongated slot', minSlot: 6 },
+  { id: 'm8-counterbore', label: 'M8 Counterbore', description: 'Single counterbore hole', minSlot: 6 },
+  { id: 'central-connector', label: 'Central Connector', description: 'Connector feature', minSlot: 6 },
+  { id: 'anchor-fast', label: 'Anchor Fast', description: 'Anchor feature', minSlot: 6 },
 ];
 
 /* ────────────────────────────────────────────
-   Feature Macro P-numbers (placeholders)
-   Replace with actual values from Patch macro table
+   Feature Macro P-numbers — Patch's actual table
+   Slot-aware: slot1 = P41xx, slot2 = P42xx
    ──────────────────────────────────────────── */
 export const MACRO_CALLS = {
-  hole5: { p: '1000', comment: '5mm hole' },
-  slot5: { p: '1001', comment: '5mm slot' },
-  hole8: { p: '1002', comment: '8mm hole' },
-  hole12: { p: '1003', comment: '12mm hole' },
+  'single-hole': {
+    slot1: { p: '4110', comment: 'F1S1 Single hole (7mm)' },
+    slot2: { p: '4210', comment: 'F1S2 Single hole (7mm)' },
+  },
+  'double-hole': {
+    slot1: { p: '4111', comment: 'F1S1 Double hole (7mm)' },
+    slot2: { p: '4211', comment: 'F1S2 Double hole (7mm)' },
+  },
+  'slotted-hole': {
+    slot1: { p: '4112', comment: 'F1S1 Slotted hole (7mm)' },
+    slot2: { p: '4212', comment: 'F1S2 Slotted hole (7mm)' },
+  },
+  'm8-counterbore': {
+    slot1: { p: '4108', comment: 'F1S1 M8 Counterbore' },
+    slot2: { p: '4208', comment: 'F1S2 M8 Counterbore' },
+  },
+  'central-connector': {
+    slot1: { p: '4150', comment: 'F1S1 Central Connector' },
+    slot2: { p: '4250', comment: 'F1S2 Central Connector' },
+  },
+  'anchor-fast': {
+    slot1: { p: '4151', comment: 'F1S1 Anchor Fast' },
+    slot2: { p: '4251', comment: 'F1S2 Anchor Fast' },
+  },
 };
 
 /* ────────────────────────────────────────────
    Machine defaults
    ──────────────────────────────────────────── */
 export const MACHINE_CONFIG = {
-  spindleRPM: 19200,
+  spindleRPM: 24000,
   safeZ: 60,
   featureZ: 60,
-  footerSafeZ: 55,
+  footerSafeZ: 60,
   spindleWaitMs: 4,
   defaultMaterialLength: 1000,
   defaultHoleCount: 4,
