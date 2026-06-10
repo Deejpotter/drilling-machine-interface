@@ -23,7 +23,7 @@ function getInitialState() {
     mode: 'simple',
     profileId: fallbackProfile.id,
     materialLength: MACHINE_CONFIG.defaultMaterialLength,
-    orderNumber: '',
+    orderNumber: '180000',
     selectedFaceIndex: fallbackFaceIndex,
     slotPatterns: [createDefaultPattern(fallbackFace.slots[0].id)],
   };
