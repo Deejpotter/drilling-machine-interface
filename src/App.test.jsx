@@ -42,9 +42,9 @@ describe('Drilling Machine App', () => {
     render(<App />);
     const holeSelect = document.getElementById('sel-hole');
     const opts = Array.from(holeSelect.options).map(o => o.textContent);
-    expect(opts).toContain('Single hole (7mm)');
-    expect(opts).toContain('Double hole (7mm)');
-    expect(opts).toContain('Slotted hole (7mm)');
+    expect(opts).toContain('7mm Hole');
+    expect(opts).toContain('7mm Double Hole');
+    expect(opts).toContain('7mm Slot');
     expect(opts).toContain('M8 Counterbore');
     expect(opts).toContain('Central Connector');
     expect(opts).toContain('Anchor Fast');

@@ -178,10 +178,10 @@ export const EXTRUSION_PROFILES = [
     width: 40,
     height: 40,
     faces: [
-      { id: 'face1', label: 'Face 1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face2', label: 'Face 2 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face3', label: 'Face 3 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face4', label: 'Face 4 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
+      { id: 'face1', label: 'Face 1 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
+      { id: 'face2', label: 'Face 2 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
+      { id: 'face3', label: 'Face 3 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
+      { id: 'face4', label: 'Face 4 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
     ],
   },
   {
@@ -192,24 +192,24 @@ export const EXTRUSION_PROFILES = [
     height: 80,
     faces: [
       {
-        id: 'face1', label: 'Face 1 (80mm side)', width: 80, slots: [
+        id: 'face1', label: 'Face 1 — S1 S2 (80mm)', width: 80, slots: [
           { id: 1, position: 20, width: 8 },
           { id: 2, position: 60, width: 8 },
         ]
       },
       {
-        id: 'face2', label: 'Face 2 (40mm side)', width: 40, slots: [
+        id: 'face2', label: 'Face 2 — S1 (40mm)', width: 40, slots: [
           { id: 1, position: 20, width: 8 },
         ]
       },
       {
-        id: 'face3', label: 'Face 3 (80mm side)', width: 80, slots: [
+        id: 'face3', label: 'Face 3 — S1 S2 (80mm)', width: 80, slots: [
           { id: 1, position: 20, width: 8 },
           { id: 2, position: 60, width: 8 },
         ]
       },
       {
-        id: 'face4', label: 'Face 4 (40mm side)', width: 40, slots: [
+        id: 'face4', label: 'Face 4 — S1 (40mm)', width: 40, slots: [
           { id: 1, position: 20, width: 8 },
         ]
       },
@@ -235,14 +235,15 @@ export const FEATURE_CONFIG = {
 
 /* ────────────────────────────────────────────
    Hole types — semantic IDs matching Patch's features
+   maxSlots: limits which faces can use this hole type
    ──────────────────────────────────────────── */
 export const HOLE_TYPES = [
-  { id: 'single-hole', label: 'Single hole (7mm)', description: 'One hole per position', minSlot: 6 },
-  { id: 'double-hole', label: 'Double hole (7mm)', description: 'Two holes, 40mm apart', minSlot: 6 },
-  { id: 'slotted-hole', label: 'Slotted hole (7mm)', description: 'Elongated slot', minSlot: 6 },
-  { id: 'm8-counterbore', label: 'M8 Counterbore', description: 'Single counterbore hole', minSlot: 6 },
-  { id: 'central-connector', label: 'Central Connector', description: 'Connector feature', minSlot: 6 },
-  { id: 'anchor-fast', label: 'Anchor Fast', description: 'Anchor feature', minSlot: 6 },
+  { id: 'single-hole', label: '7mm Hole', description: 'One hole per position', minSlot: 6, maxSlots: 99 },
+  { id: 'double-hole', label: '7mm Double Hole', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
+  { id: 'slotted-hole', label: '7mm Slot', description: 'Elongated slot', minSlot: 6, maxSlots: 99 },
+  { id: 'm8-counterbore', label: 'M8 Counterbore', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
+  { id: 'central-connector', label: 'Central Connector', description: 'Connector feature', minSlot: 6, maxSlots: 99 },
+  { id: 'anchor-fast', label: 'Anchor Fast', description: 'Anchor feature', minSlot: 6, maxSlots: 99 },
 ];
 
 /* ────────────────────────────────────────────
@@ -286,7 +287,7 @@ export const MACHINE_CONFIG = {
   footerSafeZ: 60,
   spindleWaitMs: 4,
   defaultMaterialLength: 1000,
-  defaultHoleCount: 4,
+  defaultHoleCount: 1,
   defaultFromEnd: 20,
   defaultSpacing: 50,
 };

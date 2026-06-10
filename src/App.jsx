@@ -155,6 +155,23 @@ export default function App() {
     setSaveMessage('');
   }, [profile.id, materialLength, orderNumber, selectedFaceIndex, slotPatterns]);
 
+  const hasOrderNumber = orderNumber.trim().length > 0;
+  const orderLabel = hasOrderNumber ? orderNumber.trim() : 'Job';
+  const availableHolesForFace = filteredHoleTypes.filter(h => h.maxSlots >= face.slots.length);
+
+  // When face changes, if current hole type isn't available, reset to first available
+  useEffect(() => {
+    setSlotPatterns(prev => {
+      return prev.map(p => {
+        const availableHoles = availableHolesForFace.filter(h => h.minSlot <= (slotMap.get(p.slotId)?.width || 0));
+        if (!availableHoles.find(h => h.id === p.holeType)) {
+          return { ...p, holeType: availableHoles[0]?.id || 'single-hole' };
+        }
+        return p;
+      });
+    });
+  }, [face, availableHolesForFace, slotMap]);
+
   /* Build job object for current face with one or more independently-configured slots */
   const job = useMemo(() => {
     // Generate name: OrderNumber-Profile-F#-S#_S#-Date
@@ -199,6 +216,8 @@ export default function App() {
     return generateGcode(job);
   }, [job]);
 
+  const isGcodeEmpty = !gcode || gcode.length === 0;
+
   const vizRows = useMemo(() => {
     return slotPatternsSorted.map((pattern, index) => {
       const slot = slotMap.get(pattern.slotId);
@@ -236,6 +255,7 @@ export default function App() {
   const minClearance = slotFitChecks.length > 0
     ? Math.min(...slotFitChecks.map(check => check.clearanceEnd))
     : Infinity;
+  const canDownload = fits && hasOrderNumber && !isGcodeEmpty && slotPatternsSorted.length > 0;
   const remainingSlots = face.slots.filter(slot => !slotPatterns.some(pattern => pattern.slotId === slot.id));
 
   useEffect(() => {
@@ -415,7 +435,7 @@ export default function App() {
             <div id="slot-multi" className="slot-checklist">
               {slotPatternsSorted.map((pattern, index) => {
                 const slot = slotMap.get(pattern.slotId);
-                const availableHoles = filteredHoleTypes.filter(h => h.minSlot <= (slot?.width || 0));
+                const availableHoles = availableHolesForFace.filter(h => h.minSlot <= (slot?.width || 0));
                 const rowClearance = slotFitChecks.find(check => check.slotId === pattern.slotId)?.clearanceEnd ?? 0;
                 return (
                   <div key={pattern.slotId} className="slot-pattern-row">
@@ -507,6 +527,11 @@ export default function App() {
           </div>
 
           {/* Validity */}
+          {!hasOrderNumber && (
+            <div className="validity-error">
+              Order number is required for every job
+            </div>
+          )}
           {!fits && (
             <div className="validity-error">
               Pattern overruns on S{firstOverrun?.slotId} by {Math.abs(firstOverrun?.clearanceEnd || 0).toFixed(0)}mm — reduce holes, spacing, or increase length
@@ -580,14 +605,14 @@ export default function App() {
             <div className="export-actions">
               <button className="btn-primary"
                 onClick={() => downloadGcode(job)}
-                disabled={!fits || slotPatternsSorted.length === 0}
+                disabled={!fits || slotPatternsSorted.length === 0 || !hasOrderNumber}
               >
-                Download F{faceNumber} - {selectedSlotTags.join(', ')} (.NC)
+                Download {orderLabel} F{faceNumber}
               </button>
               <button
                 className="btn-secondary"
                 onClick={handleSaveToDrive}
-                disabled={!fits || slotPatternsSorted.length === 0}
+                disabled={!fits || slotPatternsSorted.length === 0 || !hasOrderNumber}
               >
                 Save to drive (choose Z:)
               </button>
@@ -605,7 +630,7 @@ export default function App() {
           {gcode && (
             <div className="gcode-section">
               <div className="gcode-header">
-                <h3>Preview — F{faceNumber}, {selectedSlotTags.join(', ')}</h3>
+                <h3>Preview — {orderLabel} F{faceNumber}, {selectedSlotTags.join(', ')}</h3>
                 <span className="gcode-summary">
                   {job.holes.length} hole{job.holes.length !== 1 ? 's' : ''} · {materialLength}mm extrusion · {slotPatternsSorted.length} slot{slotPatternsSorted.length !== 1 ? 's' : ''}
                 </span>
