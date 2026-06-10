@@ -66,7 +66,7 @@ function getInitialState() {
       mode,
       profileId: profile.id,
       materialLength: Math.max(10, Number(parsed.materialLength) || MACHINE_CONFIG.defaultMaterialLength),
-      orderNumber: typeof parsed.orderNumber === 'string' ? parsed.orderNumber : '',
+      orderNumber: typeof parsed.orderNumber === 'string' && parsed.orderNumber.trim().length > 0 ? parsed.orderNumber : '180000',
       selectedFaceIndex: faceIndex,
       slotPatterns: slotPatterns.length > 0 ? slotPatterns : [createDefaultPattern(face.slots[0].id)],
     };
