@@ -230,6 +230,7 @@ export default function App() {
       const slot = slotMap.get(pattern.slotId);
       const holePositions = Array.from({ length: pattern.holeCount }, (_, i) => pattern.fromEnd + i * pattern.spacing);
       const holeDiameter = pattern.holeType === 'm8-counterbore' ? 12 : pattern.holeType === 'double-hole' ? 7 : pattern.holeType === 'slotted-hole' ? 7 : 7;
+      const isDoubleHole = pattern.holeType === 'double-hole';
       const rowColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index % 4];
 
       return {
@@ -242,6 +243,7 @@ export default function App() {
         holeDiameter,
         rowColor,
         pattern,
+        isDoubleHole,
       };
     });
   }, [slotPatternsSorted, slotMap]);
@@ -584,10 +586,23 @@ export default function App() {
                         const isEdgeHole = holeIndex === 0 || holeIndex === row.holePositions.length - 1;
                         return (
                           <g key={`${row.slotId}-${holeIndex}`}>
-                            <circle cx={Math.min(x, 332)} cy={baseY} r={r}
-                              fill={overrun ? '#ef4444' : row.rowColor}
-                              stroke="white" strokeWidth="2"
-                            />
+                            {row.isDoubleHole ? (
+                              <>
+                                <circle cx={Math.min(x, 332) - 4} cy={baseY} r={r}
+                                  fill={overrun ? '#ef4444' : row.rowColor}
+                                  stroke="white" strokeWidth="2"
+                                />
+                                <circle cx={Math.min(x, 332) + 4} cy={baseY} r={r}
+                                  fill={overrun ? '#ef4444' : row.rowColor}
+                                  stroke="white" strokeWidth="2"
+                                />
+                              </>
+                            ) : (
+                              <circle cx={Math.min(x, 332)} cy={baseY} r={r}
+                                fill={overrun ? '#ef4444' : row.rowColor}
+                                stroke="white" strokeWidth="2"
+                              />
+                            )}
                             {isEdgeHole && (
                               <text x={Math.min(x, 332)} y={baseY + 14} textAnchor="middle"
                                 fontSize="8" fill="#64748b" fontFamily="sans-serif">
