@@ -238,12 +238,12 @@ export const FEATURE_CONFIG = {
    maxSlots: limits which faces can use this hole type
    ──────────────────────────────────────────── */
 export const HOLE_TYPES = [
-  { id: 'single-hole', label: 'Single Hole (7mm)', description: 'One hole per position', minSlot: 6, maxSlots: 99 },
-  { id: 'double-hole', label: 'Double Hole (7mm)', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
-  { id: 'slotted-hole', label: 'Slot (7mm)', description: 'Elongated slot', minSlot: 6, maxSlots: 99 },
-  { id: 'm8-counterbore', label: 'Counterbore (M8)', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
-  { id: 'central-connector', label: 'Central Connector', description: 'Connector feature', minSlot: 6, maxSlots: 99 },
-  { id: 'anchor-fast', label: 'Anchor Fast', description: 'Anchor feature', minSlot: 6, maxSlots: 99 },
+  { id: 'single-hole', label: 'HARD-40S-4040-END-FAST-A (7mm hole)', description: 'One hole per position', minSlot: 6, maxSlots: 99 },
+  { id: 'double-hole', label: 'HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
+  { id: 'slotted-hole', label: 'HARD-40S-4040-END-FAST-A (7mm slot)', description: 'Elongated slot', minSlot: 6, maxSlots: 99 },
+  { id: 'm8-counterbore', label: 'BOLT-M8-CAP (M8 counterbore)', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
+  { id: 'central-connector', label: 'HARD-40S-CENTRAL-CONNECTOR (central connector)', description: 'Connector feature', minSlot: 6, maxSlots: 99 },
+  { id: 'anchor-fast', label: 'HARD-40S-ANCHOR-FAST (anchor fast)', description: 'Anchor feature', minSlot: 6, maxSlots: 99 },
 ];
 
 /* ────────────────────────────────────────────
