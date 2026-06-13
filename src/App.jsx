@@ -773,7 +773,7 @@ export default function App() {
                 onClick={() => downloadGcode(job)}
                 disabled={!fits || slotPatternsSorted.length === 0 || !hasOrderNumber}
               >
-                Download {orderLabel} F{faceNumber}
+                Download {job.name.split('-')[0]}-{profile.name.replace(/×/g, 'x')}{job.patternCount > 1 ? `_${job.patternCount}` : ''}-F{faceNumber}
               </button>
               <button
                 className="btn-secondary"
