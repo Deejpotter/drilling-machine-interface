@@ -414,6 +414,39 @@ export default function App() {
     });
   };
 
+  const handleSaveToDrive = async () => {
+    setSaveMessage('');
+    try {
+      const fileName = await saveGcodeWithPicker(job);
+      setSaveMessage(`Saved ${fileName}.`);
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setSaveMessage('Save canceled.');
+        return;
+      }
+      if (error?.code === 'NO_FILE_PICKER_API') {
+        setSaveMessage('Save-to-drive is not supported in this browser. Use Download instead.');
+        return;
+      }
+      setSaveMessage('Save failed. Use Download instead.');
+    }
+  };
+
+  const handleResetJob = () => {
+    const defaultProfile = filteredProfiles.find(p => p.id === '40-4040') || filteredProfiles[0];
+    const defaultFace = defaultProfile.faces[0];
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+    setProfileId(defaultProfile.id);
+    setMaterialLength(MACHINE_CONFIG.defaultMaterialLength);
+    setOrderNumber('');
+    setSelectedFaceIndex(0);
+    setSlotPatterns([createDefaultPattern(defaultFace.slots[0].id)]);
+    setSlotToAdd(defaultFace.slots[1] ? String(defaultFace.slots[1].id) : '');
+    setSaveMessage('');
+  };
+
   return (
     <div className="app">
       <header className="app-header">
