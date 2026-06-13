@@ -4,17 +4,23 @@
    the actual machine's G-code structure.
    ──────────────────────────────────────────── */
 
-import { MACRO_CALLS, MACHINE_CONFIG } from './config.js';
+import { MACRO_CALLS, MACHINE_CONFIG, HOLE_TYPE_SKUS } from './config.js';
 
 /**
- * Generate custom G-code header
+ * Generate custom G-code header with SKU naming
  */
 function generateHeader(job, lines) {
   const nc = (s) => lines.push(s);
   const date = new Date().toLocaleString();
 
+  // Build SKU description from first operation
+  const firstOp = job.operations[0];
+  const skuInfo = firstOp ? HOLE_TYPE_SKUS[firstOp.holes[0]?.holeType] : null;
+  const skuName = skuInfo ? `${skuInfo.sku} (${skuInfo.desc})` : job.name;
+
   nc(`; ──────────────────────────────────────`);
-  nc(`;  ${job.name}`);
+  nc(`;  ${skuName}`);
+  nc(`;  Order: ${job.name}`);
   nc(`;  Generated: ${date}`);
   nc(`;  Material length: ${job.materialLength}mm`);
   nc(`;  Total operations: ${job.operations.length}`);
@@ -48,9 +54,16 @@ function moveToHole(xPosition, yPosition, lines) {
 
 /**
  * Generate G-code for setting work offset and drilling a hole
+ * @param {object} macro - macro info { p, comment }
+ * @param {string} holeType - hole type ID for SKU lookup
+ * @param {number} position - distance from end in mm
+ * @param {string[]} lines - G-code output lines
  */
-function drillHole(macro, lines) {
+function drillHole(macro, holeType, position, lines) {
   const nc = (s) => lines.push(s);
+  const skuInfo = HOLE_TYPE_SKUS[holeType];
+  const skuDesc = skuInfo ? `${skuInfo.sku} (${skuInfo.desc} @ ${position}mm)` : macro.comment;
+  nc(`; ${skuDesc}`);
   nc(`G10 L20 P3 X0 Y0 Z${MACHINE_CONFIG.featureZ}      ; Set G56 at this feature`);
   nc(`M98 P${macro.p}            ; Call feature macro — ${macro.comment}`);
   nc(``);
@@ -112,8 +125,8 @@ export function generateGcode(job) {
       // Move to hole position with slot-specific X offset
       moveToHole(slotXOffset, y, lines);
 
-      // Set G56 and call macro
-      drillHole(macro, lines);
+      // Set G56 and call macro with SKU comment
+      drillHole(macro, hole.holeType, y, lines);
     }
   }
 
@@ -126,10 +139,12 @@ export function generateGcode(job) {
 }
 
 function buildBaseFilename(job) {
-  const baseName = job.name.replace(/[^a-z0-9]+/gi, '_');
-  const isFallbackJob = /^drill_job_/i.test(baseName);
-  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 17);
-  return isFallbackJob ? `${baseName}_${stamp}` : baseName;
+  const orderBase = job.name.replace(/[^a-z0-9]+/gi, '_');
+  const profileBase = (job.profile || 'unknown').toLowerCase();
+  const faceLabel = job.faceLabel || 'F1';
+  const patternMod = job.patternCount > 1 ? `_${job.operationIndex + 1}` : '';
+  const dateStamp = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // ddmmyy
+  return `${orderBase}-${profileBase}${patternMod}-${faceLabel}-${dateStamp}`;
 }
 
 /**

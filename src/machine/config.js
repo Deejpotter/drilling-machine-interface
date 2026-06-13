@@ -247,6 +247,19 @@ export const HOLE_TYPES = [
 ];
 
 /* ────────────────────────────────────────────
+   SKU mapping — product codes for each hole type
+   Used in G-code header and filenames
+   ──────────────────────────────────────────── */
+export const HOLE_TYPE_SKUS = {
+  'single-hole': { sku: 'HARD-40S-4040-END-FAST-A', desc: '7mm hole' },
+  'double-hole': { sku: 'HARD-40S-4080-END-FAST-A', desc: '2x 7mm hole - 40mm apart' },
+  'slotted-hole': { sku: 'HARD-40S-4040-END-FAST-A', desc: '7mm slot' },
+  'm8-counterbore': { sku: 'BOLT-M8-CAP', desc: 'M8 counterbore' },
+  'central-connector': { sku: 'HARD-40S-CENTRAL-CONNECTOR', desc: 'central connector' },
+  'anchor-fast': { sku: 'HARD-40S-ANCHOR-FAST', desc: 'anchor fast' },
+};
+
+/* ────────────────────────────────────────────
    Feature Macro P-numbers — Patch's actual table
    Slot-aware: slot1 = P41xx, slot2 = P42xx
    ──────────────────────────────────────────── */
