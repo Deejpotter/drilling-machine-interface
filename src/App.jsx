@@ -334,10 +334,16 @@ export default function App() {
   }, [slotPatternsSorted, slotMap]);
 
   const slotFitChecks = useMemo(() => {
-    return slotPatternsSorted.map(pattern => {
-      const lastHoleEnd = pattern.fromEnd + (pattern.holeCount - 1) * pattern.spacing + 20;
+    return slotPatternsSorted.map(slot => {
+      // Find the last hole position across all patterns in this slot
+      let lastHolePos = 0;
+      for (const pattern of slot.patterns) {
+        const patternLastHole = pattern.fromEnd + (pattern.count - 1) * pattern.spacing;
+        if (patternLastHole > lastHolePos) lastHolePos = patternLastHole;
+      }
+      const lastHoleEnd = lastHolePos + 20; // 20mm clearance
       return {
-        slotId: pattern.slotId,
+        slotId: slot.slotId,
         clearanceEnd: materialLength - lastHoleEnd,
       };
     });
