@@ -512,84 +512,112 @@ export default function App() {
               </button>
             </div>
             <div id="slot-multi" className="slot-checklist">
-              {slotPatternsSorted.map((pattern, index) => {
-                const slot = slotMap.get(pattern.slotId);
-                const availableHoles = availableHolesForFace.filter(h => h.minSlot <= (slot?.width || 0));
-                const rowClearance = slotFitChecks.find(check => check.slotId === pattern.slotId)?.clearanceEnd ?? 0;
+              {slotPatternsSorted.map((slot, slotIndex) => {
+                const slotInfo = slotMap.get(slot.slotId);
+                const availableHoles = availableHolesForFace.filter(h => h.minSlot <= (slotInfo?.width || 0));
+                const slotClearance = slotFitChecks.find(check => check.slotId === slot.slotId);
+                
                 return (
-                  <div key={pattern.slotId} className="slot-pattern-row">
+                  <div key={slot.slotId} className="slot-pattern-row">
                     <div className="slot-pattern-header">
-                      <span className="slot-pattern-title">S{pattern.slotId} @ {slot?.position}mm ({slot?.width}mm)</span>
+                      <span className="slot-pattern-title">S{slot.slotId} @ {slotInfo?.position}mm ({slotInfo?.width}mm)</span>
                       <div className="slot-pattern-actions">
                         <button
                           type="button"
                           className="slot-mini-btn"
-                          onClick={() => copyPreviousPattern(pattern.slotId)}
-                          disabled={index === 0}
+                          onClick={() => copyPreviousPattern(slot.slotId)}
+                          disabled={slotIndex === 0}
                         >
-                          Copy prev
+                          Copy prev slot
                         </button>
                         <button
                           type="button"
                           className="slot-mini-btn"
-                          onClick={() => removeSlotPattern(pattern.slotId)}
+                          onClick={() => removeSlotPattern(slot.slotId)}
                           disabled={slotPatternsSorted.length === 1}
                         >
-                          Remove
+                          Remove slot
                         </button>
                       </div>
                     </div>
-                    <div className="slot-pattern-fields">
-                      <div className="form-row">
-                        <label htmlFor={index === 0 ? 'sel-hole' : `sel-hole-${pattern.slotId}`}>Hole type</label>
-                        <select
-                          id={index === 0 ? 'sel-hole' : `sel-hole-${pattern.slotId}`}
-                          className="select"
-                          value={pattern.holeType}
-                          onChange={e => updatePattern(pattern.slotId, { holeType: e.target.value })}
-                        >
-                          {availableHoles.map(h => (
-                            <option key={h.id} value={h.id}>{h.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor={index === 0 ? 'count-input' : `count-input-${pattern.slotId}`}>Number of holes</label>
-                        <input
-                          id={index === 0 ? 'count-input' : `count-input-${pattern.slotId}`}
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={pattern.holeCount}
-                          onChange={e => updatePattern(pattern.slotId, { holeCount: Math.max(1, Number(e.target.value)) })}
-                        />
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor={index === 0 ? 'from-input' : `from-input-${pattern.slotId}`}>From end (mm)</label>
-                        <input
-                          id={index === 0 ? 'from-input' : `from-input-${pattern.slotId}`}
-                          type="number"
-                          min={0}
-                          value={pattern.fromEnd}
-                          onChange={e => updatePattern(pattern.slotId, { fromEnd: Math.max(0, Number(e.target.value)) })}
-                        />
-                      </div>
-                      {pattern.holeCount > 1 && (
-                        <div className="form-row">
-                          <label htmlFor={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}>Spacing (mm)</label>
-                          <input
-                            id={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}
-                            type="number"
-                            min={1}
-                            value={pattern.spacing}
-                            onChange={e => updatePattern(pattern.slotId, { spacing: Math.max(1, Number(e.target.value)) })}
-                          />
-                        </div>
-                      )}
+                    {/* Patterns within this slot */}
+                    <div className="slot-patterns-list">
+                      {slot.patterns.map((pattern, patternIndex) => {
+                        const prevPattern = patternIndex > 0 ? slot.patterns[patternIndex - 1] : null;
+                        return (
+                          <div key={pattern.id} className="slot-pattern-subrow">
+                            <div className="pattern-index">#{patternIndex + 1}</div>
+                            <div className="slot-pattern-fields">
+                              <div className="form-row">
+                                <label>Hole type</label>
+                                <select
+                                  className="select"
+                                  value={pattern.holeType}
+                                  onChange={e => updatePattern(slot.slotId, pattern.id, { holeType: e.target.value })}
+                                >
+                                  {availableHoles.map(h => (
+                                    <option key={h.id} value={h.id}>{h.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="form-row">
+                                <label>From end (mm)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={pattern.fromEnd}
+                                  onChange={e => updatePattern(slot.slotId, pattern.id, { fromEnd: Math.max(0, Number(e.target.value)) })}
+                                />
+                              </div>
+                              <div className="form-row">
+                                <label>Count</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={50}
+                                  value={pattern.count}
+                                  onChange={e => updatePattern(slot.slotId, pattern.id, { count: Math.max(1, Number(e.target.value)) })}
+                                />
+                              </div>
+                              {pattern.count > 1 && (
+                                <div className="form-row">
+                                  <label>Spacing (mm)</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={pattern.spacing}
+                                    onChange={e => updatePattern(slot.slotId, pattern.id, { spacing: Math.max(1, Number(e.target.value)) })}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <div className="pattern-actions">
+                              {patternIndex === slot.patterns.length - 1 && (
+                                <button
+                                  type="button"
+                                  className="slot-mini-btn"
+                                  onClick={() => addPatternToSlotHandler(slot.slotId, prevPattern || pattern)}
+                                >
+                                  + Add pattern
+                                </button>
+                              )}
+                              {slot.patterns.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="slot-mini-btn danger"
+                                  onClick={() => removePatternFromSlotHandler(slot.slotId, pattern.id)}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    {rowClearance < 0 && (
+                    {slotClearance && slotClearance.clearanceEnd < 0 && (
                       <div className="slot-row-warning">
-                        S{pattern.slotId} overruns by {Math.abs(rowClearance).toFixed(0)}mm
+                        S{slot.slotId} overruns by {Math.abs(slotClearance.clearanceEnd).toFixed(0)}mm
                       </div>
                     )}
                   </div>
