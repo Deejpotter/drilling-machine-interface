@@ -228,6 +228,8 @@ export default function App() {
   const hasOrderNumber = orderNumber.trim().length > 0;
   const orderLabel = hasOrderNumber ? orderNumber.trim() : 'Job';
   const availableHolesForFace = filteredHoleTypes.filter(h => h.maxSlots >= face.slots.length);
+  const faceWidth = face.width || 40; // Default to 40mm if not set
+  const vizScale = faceWidth / 40; // Scale relative to 40mm base
 
   // When face changes, if current hole type isn't available, reset to first available
   useEffect(() => {
@@ -695,21 +697,26 @@ export default function App() {
           {vizRows.length > 0 && (
             <div className="form-section">
               <label>Visualisation — F{faceNumber}, {vizRows.length} slot{vizRows.length !== 1 ? 's' : ''}</label>
-              <svg viewBox={`0 0 340 ${Math.max(92, 38 + vizRows.length * 34)}`} className="extrusion-viz">
-                {/* Extrusion body */}
-                <rect x="6" y="4" width="328" height={Math.max(56, 22 + vizRows.length * 34)} rx="4" fill={fits ? '#e2e8f0' : '#fee2e2'} stroke={fits ? '#94a3b8' : '#fca5a5'} strokeWidth="1" />
+              <svg viewBox={`0 0 340 ${Math.max(92, 38 + vizRows.length * 34 * vizScale)}`} className="extrusion-viz">
+                {/* Extrusion body — height scaled to face width */}
+                <rect x="6" y="4" width="328" height={Math.max(56, (22 + vizRows.length * 34) * vizScale)} rx="4" fill={fits ? '#e2e8f0' : '#fee2e2'} stroke={fits ? '#94a3b8' : '#fca5a5'} strokeWidth="1" />
                 {/* Extrusion end markers */}
-                <rect x="4" y="0" width="4" height={Math.max(64, 38 + vizRows.length * 34)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
-                <rect x="332" y="0" width="4" height={Math.max(64, 38 + vizRows.length * 34)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
+                <rect x="4" y="0" width="4" height={Math.max(64, (38 + vizRows.length * 34) * vizScale)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
+                <rect x="332" y="0" width="4" height={Math.max(64, (38 + vizRows.length * 34) * vizScale)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
                 {vizRows.map((row, rowIndex) => {
                   const rowCount = vizRows.length;
-                  const bodyHeight = Math.max(56, 22 + rowCount * 34);
-                  const baseY = 4 + (bodyHeight / (rowCount + 1)) * (rowIndex + 1);
+                  const bodyHeight = Math.max(56, (22 + rowCount * 34) * vizScale);
+                  // Position slots based on their actual position within the face width
+                  const slotPositionRatio = row.position / faceWidth;
+                  const baseY = 4 + bodyHeight * slotPositionRatio;
                   return (
                     <g key={row.slotId}>
                       <line x1="12" y1={baseY} x2="328" y2={baseY} stroke={row.rowColor} strokeWidth="2.5" strokeDasharray="5 4" opacity="0.8" />
                       <text x="16" y={baseY - 9} fontSize="10" fill="#475569" fontFamily="sans-serif">
                         {row.label}
+                      </text>
+                      <text x="334" y={baseY + 4} fontSize="9" fill="#64748b" fontFamily="sans-serif">
+                        {row.position}mm
                       </text>
                       {row.holePositions.map((holePos, holeIndex) => {
                         const pos = holePos.pos;
@@ -752,11 +759,15 @@ export default function App() {
                   );
                 })}
                 {/* Material length label */}
-                <text x="170" y={Math.max(58, 30 + vizRows.length * 34)} textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
+                <text x="170" y={Math.max(58, (30 + vizRows.length * 34) * vizScale)} textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
                   {materialLength}mm
                 </text>
-                <text x="8" y={Math.max(58, 30 + vizRows.length * 34)} textAnchor="start" fontSize="9" fill="#94a3b8" fontFamily="sans-serif">
+                <text x="8" y={Math.max(58, (30 + vizRows.length * 34) * vizScale)} textAnchor="start" fontSize="9" fill="#94a3b8" fontFamily="sans-serif">
                   0
+                </text>
+                {/* Face width dimension label */}
+                <text x="345" y={Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2} textAnchor="start" fontSize="9" fill="#64748b" fontFamily="sans-serif" transform={`rotate(90, 345, ${Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2})`}>
+                  {faceWidth}mm
                 </text>
               </svg>
               <div className="viz-legend">
