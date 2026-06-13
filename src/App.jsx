@@ -123,8 +123,11 @@ export default function App() {
   };
 
   useEffect(() => {
+    const currentProfile = filteredProfiles.find(p => p.id === profileId) || filteredProfiles[0];
+    const currentFace = currentProfile.faces[selectedFaceIndex];
+    if (!currentFace) return;
     setSlotPatterns(prev => {
-      const allowedSlots = new Set(face.slots.map(s => s.id));
+      const allowedSlots = new Set(currentFace.slots.map(s => s.id));
       const seen = new Set();
       const filtered = prev
         .filter(row => allowedSlots.has(row.slotId) && !seen.has(row.slotId))
@@ -132,9 +135,9 @@ export default function App() {
           seen.add(row.slotId);
           return row;
         });
-      return filtered.length > 0 ? filtered : [createDefaultPattern(face.slots[0].id)];
+      return filtered.length > 0 ? filtered : [createDefaultPattern(currentFace.slots[0].id)];
     });
-  }, [profileId, selectedFaceIndex, face]);
+  }, [profileId, selectedFaceIndex]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -161,27 +164,31 @@ export default function App() {
 
   // When face changes, if current hole type isn't available, reset to first available
   useEffect(() => {
+    const currentProfile = filteredProfiles.find(p => p.id === profileId) || filteredProfiles[0];
+    const currentFace = currentProfile.faces[selectedFaceIndex];
+    if (!currentFace) return;
+    const currentSlotMap = new Map(currentFace.slots.map(s => [s.id, s]));
+    const currentAvailableHoles = HOLE_TYPES.filter(h => FEATURE_CONFIG[mode].holeTypes.includes(h.id) && h.maxSlots >= currentFace.slots.length);
     setSlotPatterns(prev => {
       return prev.map(p => {
-        const availableHoles = availableHolesForFace.filter(h => h.minSlot <= (slotMap.get(p.slotId)?.width || 0));
+        const availableHoles = currentAvailableHoles.filter(h => h.minSlot <= (currentSlotMap.get(p.slotId)?.width || 0));
         if (!availableHoles.find(h => h.id === p.holeType)) {
           return { ...p, holeType: availableHoles[0]?.id || 'single-hole' };
         }
         return p;
       });
     });
-  }, [face, availableHolesForFace, slotMap]);
+  }, [profileId, selectedFaceIndex, mode]);
 
   /* Build job object for current face with one or more independently-configured slots */
   const job = useMemo(() => {
-    // Generate name: OrderNumber-Profile-F#-S#_S#-Date
+    // Generate name: OrderNumber-Profile-F#-Date (one file per face)
     const now = new Date();
     const dateStr = now.toISOString().slice(0,10).replace(/-/g,'');
     const fallbackStamp = `${now.toISOString().slice(11,19).replace(/:/g,'')}${String(now.getMilliseconds()).padStart(3, '0')}`;
-    const slotToken = selectedSlotTags.join('_');
     const name = orderNumber.trim() 
-      ? `${orderNumber.trim()}-${profile.name.replace(/×/g, 'x')}-F${faceNumber}-${slotToken}-${dateStr}`
-      : `drill-job-${fallbackStamp}-${profile.name.replace(/×/g, 'x')}-F${faceNumber}-${slotToken}-${dateStr}`;
+      ? `${orderNumber.trim()}-${profile.name.replace(/×/g, 'x')}-F${faceNumber}-${dateStr}`
+      : `drill-job-${fallbackStamp}-${profile.name.replace(/×/g, 'x')}-F${faceNumber}-${dateStr}`;
 
     return {
       name,
@@ -209,7 +216,7 @@ export default function App() {
         }))
       ),
     };
-  }, [materialLength, orderNumber, profile, face, faceNumber, slotPatternsSorted, selectedSlotTags, slotMap]);
+  }, [materialLength, orderNumber, profile, face, faceNumber, slotPatternsSorted, slotMap]);
 
   const gcode = useMemo(() => {
     if (job.holes.length === 0) return '';
@@ -259,15 +266,19 @@ export default function App() {
   const remainingSlots = face.slots.filter(slot => !slotPatterns.some(pattern => pattern.slotId === slot.id));
 
   useEffect(() => {
-    if (remainingSlots.length === 0) {
+    const currentProfile = filteredProfiles.find(p => p.id === profileId) || filteredProfiles[0];
+    const currentFace = currentProfile.faces[selectedFaceIndex];
+    if (!currentFace) return;
+    const currentRemaining = currentFace.slots.filter(slot => !slotPatterns.some(pattern => pattern.slotId === slot.id));
+    if (currentRemaining.length === 0) {
       setSlotToAdd('');
       return;
     }
-    const remainingIds = remainingSlots.map(slot => String(slot.id));
+    const remainingIds = currentRemaining.map(slot => String(slot.id));
     if (!remainingIds.includes(slotToAdd)) {
       setSlotToAdd(remainingIds[0]);
     }
-  }, [remainingSlots, slotToAdd]);
+  }, [profileId, selectedFaceIndex, slotPatterns, slotToAdd]);
 
   const updatePattern = (slotId, patch) => {
     setSlotPatterns(prev => prev.map(pattern =>
@@ -495,16 +506,18 @@ export default function App() {
                           onChange={e => updatePattern(pattern.slotId, { fromEnd: Math.max(0, Number(e.target.value)) })}
                         />
                       </div>
-                      <div className="form-row">
-                        <label htmlFor={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}>Spacing (mm)</label>
-                        <input
-                          id={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}
-                          type="number"
-                          min={1}
-                          value={pattern.spacing}
-                          onChange={e => updatePattern(pattern.slotId, { spacing: Math.max(1, Number(e.target.value)) })}
-                        />
-                      </div>
+                      {pattern.holeCount > 1 && (
+                        <div className="form-row">
+                          <label htmlFor={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}>Spacing (mm)</label>
+                          <input
+                            id={index === 0 ? 'spacing-input' : `spacing-input-${pattern.slotId}`}
+                            type="number"
+                            min={1}
+                            value={pattern.spacing}
+                            onChange={e => updatePattern(pattern.slotId, { spacing: Math.max(1, Number(e.target.value)) })}
+                          />
+                        </div>
+                      )}
                     </div>
                     {rowClearance < 0 && (
                       <div className="slot-row-warning">
@@ -554,7 +567,9 @@ export default function App() {
                 <rect x="4" y="0" width="4" height={Math.max(64, 38 + vizRows.length * 34)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
                 <rect x="332" y="0" width="4" height={Math.max(64, 38 + vizRows.length * 34)} rx="1" fill={fits ? '#64748b' : '#ef4444'} />
                 {vizRows.map((row, rowIndex) => {
-                  const baseY = 20 + rowIndex * 34;
+                  const rowCount = vizRows.length;
+                  const bodyHeight = Math.max(56, 22 + rowCount * 34);
+                  const baseY = 4 + (bodyHeight / (rowCount + 1)) * (rowIndex + 1);
                   return (
                     <g key={row.slotId}>
                       <line x1="12" y1={baseY} x2="328" y2={baseY} stroke={row.rowColor} strokeWidth="2.5" strokeDasharray="5 4" opacity="0.8" />
@@ -563,7 +578,7 @@ export default function App() {
                       </text>
                       {row.holePositions.map((pos, holeIndex) => {
                         const pct = pos / materialLength;
-                        const x = 4 + 328 * pct;
+                        const x = 12 + 316 * pct;
                         const overrun = pos > materialLength;
                         const r = Math.max(4, row.holeDiameter * 0.5);
                         const isEdgeHole = holeIndex === 0 || holeIndex === row.holePositions.length - 1;
