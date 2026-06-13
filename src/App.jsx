@@ -697,7 +697,7 @@ export default function App() {
           {vizRows.length > 0 && (
             <div className="form-section">
               <label>Visualisation — F{faceNumber}, {vizRows.length} slot{vizRows.length !== 1 ? 's' : ''}</label>
-              <svg viewBox={`0 0 340 ${Math.max(92, 38 + vizRows.length * 34 * vizScale)}`} className="extrusion-viz">
+              <svg viewBox={`0 0 340 ${Math.max(92, (38 + vizRows.length * 34) * vizScale)}`} className="extrusion-viz">
                 {/* Extrusion body — height scaled to face width */}
                 <rect x="6" y="4" width="328" height={Math.max(56, (22 + vizRows.length * 34) * vizScale)} rx="4" fill={fits ? '#e2e8f0' : '#fee2e2'} stroke={fits ? '#94a3b8' : '#fca5a5'} strokeWidth="1" />
                 {/* Extrusion end markers */}
@@ -759,15 +759,15 @@ export default function App() {
                   );
                 })}
                 {/* Material length label */}
-                <text x="170" y={Math.max(58, (30 + vizRows.length * 34) * vizScale)} textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
+                <text x="170" y={Math.max(58, (30 + vizRows.length * 34) * vizScale) + 20} textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
                   {materialLength}mm
                 </text>
-                <text x="8" y={Math.max(58, (30 + vizRows.length * 34) * vizScale)} textAnchor="start" fontSize="9" fill="#94a3b8" fontFamily="sans-serif">
+                <text x="8" y={Math.max(58, (30 + vizRows.length * 34) * vizScale) + 20} textAnchor="start" fontSize="9" fill="#94a3b8" fontFamily="sans-serif">
                   0
                 </text>
                 {/* Face width dimension label */}
-                <text x="345" y={Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2} textAnchor="start" fontSize="9" fill="#64748b" fontFamily="sans-serif" transform={`rotate(90, 345, ${Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2})`}>
-                  {faceWidth}mm
+                <text x="345" y={Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2 + 4} textAnchor="start" fontSize="9" fill="#64748b" fontFamily="sans-serif" transform={`rotate(90, 345, ${Math.max(58, (30 + vizRows.length * 34) * vizScale) / 2 + 4})`}>
+                  {faceWidth}mm face
                 </text>
               </svg>
               <div className="viz-legend">
