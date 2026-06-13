@@ -2,17 +2,62 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { generateGcode, downloadGcode, saveGcodeWithPicker } from './machine/gcodeGenerator';
 import { EXTRUSION_PROFILES, HOLE_TYPES, FEATURE_CONFIG, MACHINE_CONFIG } from './machine/config';
 
-const STORAGE_KEY = 'drilling-machine-ui-state-v2';
+const STORAGE_KEY = 'drilling-machine-ui-state-v3';
 const MODE_KEY = 'drilling-machine-mode';
+
+// Generate unique pattern IDs
+let _patternIdCounter = 0;
+const generatePatternId = () => `p${++_patternIdCounter}-${Date.now().toString(36)}`;
 
 function createDefaultPattern(slotId) {
   return {
     slotId,
-    holeType: 'single-hole',
-    holeCount: MACHINE_CONFIG.defaultHoleCount,
-    fromEnd: MACHINE_CONFIG.defaultFromEnd,
-    spacing: MACHINE_CONFIG.defaultSpacing,
+    patterns: [
+      {
+        id: generatePatternId(),
+        holeType: 'single-hole',
+        fromEnd: MACHINE_CONFIG.defaultFromEnd,
+        count: 1,
+        spacing: 0,
+      },
+    ],
   };
+}
+
+function addPatternToSlot(slotPatterns, slotId, prevPattern = null) {
+  const defaultFromEnd = prevPattern ? prevPattern.fromEnd + 25 : MACHINE_CONFIG.defaultFromEnd;
+  return slotPatterns.map(slot => {
+    if (slot.slotId !== slotId) return slot;
+    const newPattern = {
+      id: generatePatternId(),
+      holeType: prevPattern ? prevPattern.holeType : 'single-hole',
+      fromEnd: defaultFromEnd,
+      count: 1,
+      spacing: 0,
+    };
+    return { ...slot, patterns: [...slot.patterns, newPattern] };
+  });
+}
+
+function removePatternFromSlot(slotPatterns, slotId, patternId) {
+  return slotPatterns.map(slot => {
+    if (slot.slotId !== slotId) return slot;
+    if (slot.patterns.length <= 1) return slot; // Keep at least one pattern
+    return { ...slot, patterns: slot.patterns.filter(p => p.id !== patternId) };
+  });
+}
+
+function updatePatternInSlot(slotPatterns, slotId, patternId, updates) {
+  return slotPatterns.map(slot => {
+    if (slot.slotId !== slotId) return slot;
+    return {
+      ...slot,
+      patterns: slot.patterns.map(p => {
+        if (p.id !== patternId) return p;
+        return { ...p, ...updates };
+      }),
+    };
+  });
 }
 
 function getInitialState() {
@@ -47,18 +92,40 @@ function getInitialState() {
     const face = profile.faces[faceIndex];
     const allowedSlots = new Set(face.slots.map(s => s.id));
     const seen = new Set();
+    
+    // Migrate old structure (v2) to new structure (v3)
     const slotPatterns = Array.isArray(parsed.slotPatterns)
       ? parsed.slotPatterns
           .filter(row => row && allowedSlots.has(row.slotId) && !seen.has(row.slotId))
           .map(row => {
             seen.add(row.slotId);
-            return {
-              slotId: row.slotId,
-              holeType: typeof row.holeType === 'string' ? row.holeType : 'single-hole',
-              holeCount: Math.max(1, Number(row.holeCount) || MACHINE_CONFIG.defaultHoleCount),
-              fromEnd: Math.max(0, Number(row.fromEnd) || MACHINE_CONFIG.defaultFromEnd),
-              spacing: Math.max(1, Number(row.spacing) || MACHINE_CONFIG.defaultSpacing),
-            };
+            // Check if this is old structure (has holeCount) or new structure (has patterns array)
+            if (row.patterns && Array.isArray(row.patterns)) {
+              // New structure - validate and use as-is
+              return {
+                slotId: row.slotId,
+                patterns: row.patterns.map(p => ({
+                  id: p.id || generatePatternId(),
+                  holeType: typeof p.holeType === 'string' ? p.holeType : 'single-hole',
+                  fromEnd: Math.max(0, Number(p.fromEnd) || MACHINE_CONFIG.defaultFromEnd),
+                  count: Math.max(1, Number(p.count) || 1),
+                  spacing: Math.max(0, Number(p.spacing) || 0),
+                })),
+              };
+            } else {
+              // Old structure - migrate to new structure
+              const holeCount = Math.max(1, Number(row.holeCount) || MACHINE_CONFIG.defaultHoleCount);
+              const fromEnd = Math.max(0, Number(row.fromEnd) || MACHINE_CONFIG.defaultFromEnd);
+              const spacing = Math.max(1, Number(row.spacing) || MACHINE_CONFIG.defaultSpacing);
+              const patterns = Array.from({ length: holeCount }, (_, i) => ({
+                id: generatePatternId(),
+                holeType: typeof row.holeType === 'string' ? row.holeType : 'single-hole',
+                fromEnd: fromEnd + i * spacing,
+                count: 1,
+                spacing: 0,
+              }));
+              return { slotId: row.slotId, patterns };
+            }
           })
       : [];
 
@@ -194,26 +261,35 @@ export default function App() {
       name,
       materialLength,
       createdAt: new Date().toISOString(),
-      operations: slotPatternsSorted.map(pattern => ({
-        profile: profile.name,
-        face: `F${faceNumber}`,
-        faceLabel: face.label,
-        slot: pattern.slotId,
-        slotPosition: slotMap.get(pattern.slotId)?.position || 0,
-        slot_width_mm: slotMap.get(pattern.slotId)?.width || 0,
-        holes: Array.from({ length: pattern.holeCount }, (_, i) => ({
-          step: i + 1,
-          holeType: pattern.holeType,
-          distance_from_end_mm: pattern.fromEnd + i * pattern.spacing,
-        })),
-      })),
-      holes: slotPatternsSorted.flatMap(pattern =>
-        Array.from({ length: pattern.holeCount }, (_, i) => ({
-          step: i + 1,
-          holeType: pattern.holeType,
-          distance_from_end_mm: pattern.fromEnd + i * pattern.spacing,
-          slot: pattern.slotId,
+      profile: profile.name,
+      faceLabel: `F${faceNumber}`,
+      patternCount: slotPatternsSorted.reduce((sum, slot) => sum + slot.patterns.length, 0),
+      operations: slotPatternsSorted.flatMap((slot, slotIndex) =>
+        slot.patterns.map((pattern, patternIndex) => ({
+          profile: profile.name,
+          face: `F${faceNumber}`,
+          faceLabel: face.label,
+          slot: slot.slotId,
+          slotPosition: slotMap.get(slot.slotId)?.position || 0,
+          slot_width_mm: slotMap.get(slot.slotId)?.width || 0,
+          operationIndex: patternIndex,
+          holes: Array.from({ length: pattern.count }, (_, i) => ({
+            step: i + 1,
+            holeType: pattern.holeType,
+            distance_from_end_mm: pattern.fromEnd + i * pattern.spacing,
+          })),
         }))
+      ),
+      holes: slotPatternsSorted.flatMap(slot =>
+        slot.patterns.flatMap(pattern =>
+          Array.from({ length: pattern.count }, (_, i) => ({
+            step: i + 1,
+            holeType: pattern.holeType,
+            distance_from_end_mm: pattern.fromEnd + i * pattern.spacing,
+            slot: slot.slotId,
+            patternId: pattern.id,
+          }))
+        )
       ),
     };
   }, [materialLength, orderNumber, profile, face, faceNumber, slotPatternsSorted, slotMap]);
@@ -226,24 +302,33 @@ export default function App() {
   const isGcodeEmpty = !gcode || gcode.length === 0;
 
   const vizRows = useMemo(() => {
-    return slotPatternsSorted.map((pattern, index) => {
-      const slot = slotMap.get(pattern.slotId);
-      const holePositions = Array.from({ length: pattern.holeCount }, (_, i) => pattern.fromEnd + i * pattern.spacing);
-      const holeDiameter = pattern.holeType === 'm8-counterbore' ? 12 : pattern.holeType === 'double-hole' ? 7 : pattern.holeType === 'slotted-hole' ? 7 : 7;
-      const isDoubleHole = pattern.holeType === 'double-hole';
-      const rowColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index % 4];
+    return slotPatternsSorted.map((slot, slotIndex) => {
+      const slotInfo = slotMap.get(slot.slotId);
+      // Collect all hole positions from all patterns in this slot
+      const allHolePositions = [];
+      let hasDoubleHole = false;
+      let holeDiameter = 7;
+      
+      for (const pattern of slot.patterns) {
+        const positions = Array.from({ length: pattern.count }, (_, i) => pattern.fromEnd + i * pattern.spacing);
+        allHolePositions.push(...positions.map(pos => ({ pos, holeType: pattern.holeType })));
+        if (pattern.holeType === 'double-hole') hasDoubleHole = true;
+        if (pattern.holeType === 'm8-counterbore') holeDiameter = 12;
+      }
+      
+      const rowColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][slotIndex % 4];
 
       return {
-        slotId: pattern.slotId,
-        label: `S${pattern.slotId}`,
-        slotPosition: slot?.position ?? 0,
-        position: slot?.position ?? 0,
-        width: slot?.width ?? 0,
-        holePositions,
+        slotId: slot.slotId,
+        label: `S${slot.slotId}`,
+        slotPosition: slotInfo?.position ?? 0,
+        position: slotInfo?.position ?? 0,
+        width: slotInfo?.width ?? 0,
+        holePositions: allHolePositions,
         holeDiameter,
         rowColor,
-        pattern,
-        isDoubleHole,
+        patterns: slot.patterns,
+        isDoubleHole: hasDoubleHole,
       };
     });
   }, [slotPatternsSorted, slotMap]);
@@ -282,10 +367,8 @@ export default function App() {
     }
   }, [profileId, selectedFaceIndex, slotPatterns, slotToAdd]);
 
-  const updatePattern = (slotId, patch) => {
-    setSlotPatterns(prev => prev.map(pattern =>
-      pattern.slotId === slotId ? { ...pattern, ...patch } : pattern
-    ));
+  const updatePattern = (slotId, patternId, patch) => {
+    setSlotPatterns(prev => updatePatternInSlot(prev, slotId, patternId, patch));
   };
 
   const addSlotPattern = (slotId) => {
@@ -302,49 +385,32 @@ export default function App() {
     });
   };
 
-  const handleSaveToDrive = async () => {
-    setSaveMessage('');
-    try {
-      const fileName = await saveGcodeWithPicker(job);
-      setSaveMessage(`Saved ${fileName}.`);
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        setSaveMessage('Save canceled.');
-        return;
-      }
-      if (error?.code === 'NO_FILE_PICKER_API') {
-        setSaveMessage('Save-to-drive is not supported in this browser. Use Download instead.');
-        return;
-      }
-      setSaveMessage('Save failed. Use Download instead.');
-    }
+  const addPatternToSlotHandler = (slotId, prevPattern = null) => {
+    setSlotPatterns(prev => addPatternToSlot(prev, slotId, prevPattern));
   };
 
-  const handleResetJob = () => {
-    const defaultProfile = filteredProfiles.find(p => p.id === '40-4040') || filteredProfiles[0];
-    const defaultFace = defaultProfile.faces[0];
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
-    setProfileId(defaultProfile.id);
-    setMaterialLength(MACHINE_CONFIG.defaultMaterialLength);
-    setOrderNumber('');
-    setSelectedFaceIndex(0);
-    setSlotPatterns([createDefaultPattern(defaultFace.slots[0].id)]);
-    setSlotToAdd(defaultFace.slots[1] ? String(defaultFace.slots[1].id) : '');
-    setSaveMessage('');
+  const removePatternFromSlotHandler = (slotId, patternId) => {
+    setSlotPatterns(prev => removePatternFromSlot(prev, slotId, patternId));
   };
 
   const copyPreviousPattern = (slotId) => {
     const idx = slotPatternsSorted.findIndex(p => p.slotId === slotId);
     if (idx <= 0) return;
-    const prevPattern = slotPatternsSorted[idx - 1];
-    if (!prevPattern) return;
-    updatePattern(slotId, {
-      holeType: prevPattern.holeType,
-      holeCount: prevPattern.holeCount,
-      fromEnd: prevPattern.fromEnd,
-      spacing: prevPattern.spacing,
+    const prevSlot = slotPatternsSorted[idx - 1];
+    if (!prevSlot || !prevSlot.patterns || prevSlot.patterns.length === 0) return;
+    // Copy all patterns from previous slot
+    const patternsToCopy = prevSlot.patterns.map(p => ({
+      id: generatePatternId(),
+      holeType: p.holeType,
+      fromEnd: p.fromEnd,
+      count: p.count,
+      spacing: p.spacing,
+    }));
+    setSlotPatterns(prev => {
+      return prev.map(slot => {
+        if (slot.slotId !== slotId) return slot;
+        return { ...slot, patterns: [...slot.patterns, ...patternsToCopy] };
+      });
     });
   };
 
@@ -578,15 +644,18 @@ export default function App() {
                       <text x="16" y={baseY - 9} fontSize="10" fill="#475569" fontFamily="sans-serif">
                         {row.label}
                       </text>
-                      {row.holePositions.map((pos, holeIndex) => {
+                      {row.holePositions.map((holePos, holeIndex) => {
+                        const pos = holePos.pos;
+                        const holeType = holePos.holeType;
                         const pct = pos / materialLength;
                         const x = 12 + 316 * pct;
                         const overrun = pos > materialLength;
                         const r = Math.max(4, row.holeDiameter * 0.5);
                         const isEdgeHole = holeIndex === 0 || holeIndex === row.holePositions.length - 1;
+                        const isDoubleHole = holeType === 'double-hole';
                         return (
                           <g key={`${row.slotId}-${holeIndex}`}>
-                            {row.isDoubleHole ? (
+                            {isDoubleHole ? (
                               <>
                                 <circle cx={Math.min(x, 332) - 4} cy={baseY} r={r}
                                   fill={overrun ? '#ef4444' : row.rowColor}

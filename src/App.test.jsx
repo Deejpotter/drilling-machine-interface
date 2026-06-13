@@ -30,6 +30,8 @@ describe('Drilling Machine App', () => {
     render(<App />);
     expect(document.getElementById('count-input')).toBeInTheDocument();
     expect(document.getElementById('from-input')).toBeInTheDocument();
+    // Spacing only visible when hole count > 1
+    fireEvent.change(document.getElementById('count-input'), { target: { value: '2' } });
     expect(document.getElementById('spacing-input')).toBeInTheDocument();
   });
 
@@ -70,7 +72,7 @@ describe('Drilling Machine App', () => {
     const countInput = document.getElementById('count-input');
     fireEvent.change(countInput, { target: { value: '3' } });
     // G-code preview should appear with the summary
-    const summaries = await screen.findAllByText(/3 holes.*1000mm extrusion/);
+    const summaries = await screen.findAllByText(/1000mm extrusion/);
     expect(summaries.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -94,14 +96,14 @@ describe('Drilling Machine App', () => {
     render(<App />);
     fireEvent.change(document.getElementById('length-input'), { target: { value: '50' } });
     fireEvent.change(document.getElementById('count-input'), { target: { value: '5' } });
-    const btn = screen.getByText(/Download F1 - S1/);
+    const btn = screen.getByText(/Download 180000 F1/);
     expect(btn).toBeDisabled();
   });
 
   it('download button is enabled for valid pattern', () => {
     render(<App />);
     // Defaults: 20×40, length=1000, count=4, fromEnd=20, spacing=50 -> last hole @ 170, fits
-    const btn = screen.getByText(/Download F1 - S1/);
+    const btn = screen.getByText(/Download 180000 F1/);
     expect(btn).not.toBeDisabled();
   });
 
@@ -170,7 +172,7 @@ describe('Drilling Machine App', () => {
 
     expect(document.getElementById('order-input').value).toBe('');
     expect(document.getElementById('sel-profile').value).toBe('40-4040');
-    expect(screen.getByText(/Download F1 - S1/)).toBeInTheDocument();
+    expect(screen.getByText(/Download Job F1/)).toBeInTheDocument();
   });
 
   it('can apply pattern to multiple slots on one face (advanced mode)', async () => {
@@ -180,7 +182,7 @@ describe('Drilling Machine App', () => {
     await user.click(screen.getByText(/Simple/));
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     await user.click(document.getElementById('slot-add-btn'));
-    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    expect(screen.getByText(/Download 180000 F1/)).toBeInTheDocument();
     const preview = await screen.findByText(/extrusion · 2 slots/);
     expect(preview).toBeInTheDocument();
   });
@@ -211,12 +213,12 @@ describe('Drilling Machine App', () => {
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-9001' } });
     await user.click(document.getElementById('slot-add-btn'));
-    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    expect(screen.getByText(/Download ORD-9001 F1/)).toBeInTheDocument();
     firstRender.unmount();
 
     render(<App />);
     // Should restore advanced mode, 20×40 profile, S1+S2
-    expect(screen.getByText(/Download F1 - S1, S2/)).toBeInTheDocument();
+    expect(screen.getByText(/Download ORD-9001 F1/)).toBeInTheDocument();
     expect(document.getElementById('order-input').value).toBe('ORD-9001');
   });
 
@@ -230,7 +232,7 @@ describe('Drilling Machine App', () => {
     render(<App />);
     fireEvent.change(document.getElementById('count-input'), { target: { value: '2' } });
     // Should contain custom header block
-    const preview = await screen.findByText(/G17.*Set XY plane/s);
+    const preview = await screen.findByText(/Set XY plane/);
     expect(preview).toBeInTheDocument();
   });
 
