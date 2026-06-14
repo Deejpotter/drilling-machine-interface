@@ -1,19 +1,42 @@
 /* ────────────────────────────────────────────
-   G-code generator — Real Patch controller format
-   Produces a standalone drilling script matching
-   the actual machine's G-code structure.
+   G-code generator — Patch's actual controller format
+
+   This produces .nc files that are called as subroutines by the
+   machine's main controller. They are NOT standalone programs —
+   that's why we use M99 (subroutine return) instead of M30 (program end).
+
+   The G-code structure follows Patch's spec from 2026-06-10:
+   1. Header: set up machine state (coolant, metric, spindle, work offsets)
+   2. Per-hole: move to position → set G56 offset → call feature macro
+   3. Footer: safe Z, spindle off, return past beam end, M99
+
+   Key conventions:
+   - G54 = machine coordinates (safe Z, home position)
+   - G55 = work offset for the current face (set via G10 L20 P2)
+   - G56 = feature-level offset (set per hole via G10 L20 P3)
+   - M98 P#### = call a pre-loaded macro on the machine controller
+   - Slot 1 uses X0, slot 2 uses X-60 (60mm slot-to-slot on 40×80)
    ──────────────────────────────────────────── */
 
 import { MACRO_CALLS, MACHINE_CONFIG, HOLE_TYPE_SKUS } from './config.js';
 
 /**
- * Generate custom G-code header with SKU naming
+ * Generate the G-code header.
+ *
+ * This initialises the machine state before drilling begins.
+ * The header is the same for every job — only the job name and
+ * material length vary. The tool change (T1 M6) is commented out
+ * because the machine typically has the correct tool already loaded;
+ * uncomment it if tool changes are needed.
  */
 function generateHeader(job, lines) {
   const nc = (s) => lines.push(s);
   const date = new Date().toLocaleString();
 
-  // Build SKU description from first operation
+  // Build SKU description from the first operation's hole type.
+  // This puts the product code (e.g., HARD-40S-4080-END-FAST-A)
+  // at the top of the file so operators can quickly verify they're
+  // running the right program.
   const firstOp = job.operations[0];
   const skuInfo = firstOp ? HOLE_TYPE_SKUS[firstOp.holes[0]?.holeType] : null;
   const skuName = skuInfo ? `${skuInfo.sku} (${skuInfo.desc})` : job.name;
@@ -23,6 +46,9 @@ function generateHeader(job, lines) {
   nc(`;  Order: ${job.name}`);
   nc(`;  Generated: ${date}`);
   nc(`;  Material length: ${job.materialLength}mm`);
+  if (job.repetitions > 1) {
+    nc(`;  Batch size: ${job.repetitions} repetitions`);
+  }
   nc(`;  Total operations: ${job.operations.length}`);
   nc(`; ──────────────────────────────────────`);
   nc(``);
@@ -41,10 +67,11 @@ function generateHeader(job, lines) {
 }
 
 /**
- * Generate G-code for moving to a hole position
- * @param {number} xPosition - X offset (0 for slot 1, -60 for slot 2)
- * @param {number} yPosition - Y distance from end
- * @param {string[]} lines - G-code output lines
+ * Move to a hole position in G55 coordinates.
+ *
+ * We move to safe Z first to avoid dragging the drill bit across
+ * the workpiece during positioning. The X position is slot-specific:
+ * slot 1 = X0, slot 2 = X-60 (60mm offset for 40×80 profiles).
  */
 function moveToHole(xPosition, yPosition, lines) {
   const nc = (s) => lines.push(s);
@@ -53,11 +80,12 @@ function moveToHole(xPosition, yPosition, lines) {
 }
 
 /**
- * Generate G-code for setting work offset and drilling a hole
- * @param {object} macro - macro info { p, comment }
- * @param {string} holeType - hole type ID for SKU lookup
- * @param {number} position - distance from end in mm
- * @param {string[]} lines - G-code output lines
+ * Set G56 at the feature position and call the macro.
+ *
+ * G10 L20 P3 sets the G56 work offset to the current position.
+ * This tells the machine "this is where the feature starts" so the
+ * macro can use relative coordinates internally. Then M98 P####
+ * calls the pre-loaded macro that performs the actual drilling.
  */
 function drillHole(macro, holeType, position, lines) {
   const nc = (s) => lines.push(s);
@@ -70,9 +98,12 @@ function drillHole(macro, holeType, position, lines) {
 }
 
 /**
- * Generate G-code footer
- * M99 (subroutine return), not M30 (program end)
- * Y returns to beam length + 50mm
+ * Generate the G-code footer.
+ *
+ * We use M99 (subroutine return) instead of M30 (program end)
+ * because these .nc files are called from the main controller.
+ * The Y return goes past the beam end by 50mm to ensure the
+ * drill bit clears the workpiece before the next operation.
  */
 function generateFooter(job, lines) {
   const nc = (s) => lines.push(s);
@@ -138,6 +169,15 @@ export function generateGcode(job) {
   return lines.join('\n');
 }
 
+/**
+ * Build the base filename for the .nc file.
+ *
+ * The filename follows the naming convention:
+ * OrderNumber-Profile_Pattern-F#-DDMMYY
+ *
+ * The _1 suffix indicates pattern number — future batch tracking
+ * will increment this. We use ×→x replacement for filesystem safety.
+ */
 function buildBaseFilename(job) {
   const orderBase = job.name.replace(/[^a-z0-9]+/gi, '_');
   const profileBase = (job.profile || 'unknown').toLowerCase();
@@ -148,8 +188,11 @@ function buildBaseFilename(job) {
 }
 
 /**
- * Generate g-code and download as .nc file
- * @param {import('./constants').GcodeJob} job
+ * Generate G-code and download as .nc file.
+ *
+ * This is the primary export method — creates a Blob URL and
+ * triggers a browser download. The .nc extension is important
+ * because the machine controller expects that file type.
  */
 export function downloadGcode(job) {
   const gcode = generateGcode(job);
@@ -164,8 +207,13 @@ export function downloadGcode(job) {
 }
 
 /**
- * Save g-code using system file picker (e.g. choose Z: drive)
- * @param {import('./constants').GcodeJob} job
+ * Save G-code using system file picker (e.g., choose Z: drive).
+ *
+ * This uses the File System Access API (showSaveFilePicker) to let
+ * operators save directly to a network drive or USB stick. Falls back
+ * gracefully if the browser doesn't support it (e.g., Firefox).
+ *
+ * @throws {Error} with code 'NO_FILE_PICKER_API' if API unavailable
  */
 export async function saveGcodeWithPicker(job) {
   if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') {

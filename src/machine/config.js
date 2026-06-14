@@ -1,12 +1,31 @@
 /* ────────────────────────────────────────────
    Machine configuration
-   Abstracts profiles, hole types, and macro mappings
-   so they can be easily updated without code changes.
+
+   This file is the single source of truth for all machine parameters.
+   When Patch changes a macro number, adds a new profile, or adjusts
+   spindle speed, this is the only file that needs updating.
+
+   The structure is deliberately data-driven — no logic, no conditionals.
+   This makes it easy to verify correctness by inspection and prevents
+   bugs from sneaking in through complex update paths.
    ──────────────────────────────────────────── */
 
 /* ────────────────────────────────────────────
-   Extrusion profiles with full dimensional data
-   Each face has slots with positions (center from end)
+   Extrusion profiles
+
+   Each profile represents a Maker Store aluminium extrusion type.
+   The dimensional data (width, height, slot positions) is used for:
+   1. Validation — ensuring hole patterns fit within the face width
+   2. Visualisation — scaling the SVG diagram to match proportions
+   3. G-code — determining slot-to-slot X offsets (e.g., 60mm on 40×80)
+
+   In simple mode, only 40-series profiles are shown because Patch's
+   subroutines are written for those profiles. The 20/30-series data
+   stays here for future use — it's filtered at the UI level, not deleted.
+
+   Slot positions are "centre from end" — the distance from the
+   extrusion end to the centre of the slot channel. This matters
+   because the drilling machine positions relative to the end.
    ──────────────────────────────────────────── */
 export const EXTRUSION_PROFILES = [
   {
@@ -219,8 +238,18 @@ export const EXTRUSION_PROFILES = [
 
 /* ────────────────────────────────────────────
    Feature toggle — simple vs advanced mode
-   Simple = 40-series only with Patch's macros
-   Advanced = all profiles, all hole types
+
+   Simple mode exists because Patch's subroutines and G-code format
+   are written for 40-series extrusions only. The other profiles
+   exist in the tooling but aren't needed for the current production run.
+
+   This config drives the entire filtering pipeline — profile selector,
+   face selector, hole type dropdown, and slot width validation all
+   read from here. Changing a single array here updates the whole UI.
+
+   Advanced mode shows everything. It's the "escape hatch" for when
+   20-series comes online or new hole types are added — just update
+   these arrays, no code changes needed.
    ──────────────────────────────────────────── */
 export const FEATURE_CONFIG = {
   simple: {
@@ -234,21 +263,42 @@ export const FEATURE_CONFIG = {
 };
 
 /* ────────────────────────────────────────────
-   Hole types — semantic IDs matching Patch's features
-   maxSlots: limits which faces can use this hole type
+   Hole types
+
+   Each hole type maps to a physical feature on the extrusion.
+   The labels show Maker Store SKUs so operators can cross-reference
+   with the hardware they're installing.
+
+   Constraints:
+   - minSlot: minimum slot width (mm) required for this hole type
+   - maxSlots: maximum number of slots a face can have to use this type
+     (e.g., double-hole is limited to 2 slots because it spans both)
+
+   All holes are 7mm diameter — the differentiation is pattern type,
+   not hole size. This is because the physical drilling bit is the
+   same; the controller macro determines the pattern (single, double,
+   slotted, counterbore).
    ──────────────────────────────────────────── */
 export const HOLE_TYPES = [
   { id: 'single-hole', label: 'HARD-40S-4040-END-FAST-A (7mm hole)', description: 'One hole per position', minSlot: 6, maxSlots: 99 },
   { id: 'double-hole', label: 'HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
-  { id: 'slotted-hole', label: 'HARD-40S-4040-END-FAST-A (7mm slot)', description: 'Elongated slot', minSlot: 6, maxSlots: 99 },
+  { id: 'slotted-hole', label: 'HARD-40S-4040-END-FAST-A (7mm slot)', description: 'Elongated slot', minSlot: 6, maxSlots: 99, slotLength: 50 },
   { id: 'm8-counterbore', label: 'BOLT-M8-CAP (M8 counterbore)', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
   { id: 'central-connector', label: 'HARD-40S-CENTRAL-CONNECTOR (central connector)', description: 'Connector feature', minSlot: 6, maxSlots: 99 },
   { id: 'anchor-fast', label: 'HARD-40S-ANCHOR-FAST (anchor fast)', description: 'Anchor feature', minSlot: 6, maxSlots: 99 },
 ];
 
 /* ────────────────────────────────────────────
-   SKU mapping — product codes for each hole type
-   Used in G-code header and filenames
+   SKU mapping
+
+   Maps hole type IDs to Maker Store product codes. Used in:
+   1. G-code header — operators see the SKU at the top of the file
+   2. G-code comments — each macro call includes the SKU description
+   3. File naming — future use for SKU-based filenames
+
+   This is a separate lookup from HOLE_TYPES because the SKU format
+   is different from the display label (e.g., label includes
+   parenthetical description, SKU is just the product code).
    ──────────────────────────────────────────── */
 export const HOLE_TYPE_SKUS = {
   'single-hole': { sku: 'HARD-40S-4040-END-FAST-A', desc: '7mm hole' },
@@ -261,7 +311,16 @@ export const HOLE_TYPE_SKUS = {
 
 /* ────────────────────────────────────────────
    Feature Macro P-numbers — Patch's actual table
-   Slot-aware: slot1 = P41xx, slot2 = P42xx
+
+   These are the real P-numbers from Patch's controller. Each
+   hole type has two macros: one for slot 1 (P41xx) and one for
+   slot 2 (P42xx). The X-offset differs between slots:
+   - Slot 1: X0
+   - Slot 2: X-60 (60mm slot-to-slot distance on 40×80)
+
+   The comment field is used in G-code output for human readability.
+   Operators and Patch can cross-reference the generated .nc files
+   against the macro table to verify correctness.
    ──────────────────────────────────────────── */
 export const MACRO_CALLS = {
   'single-hole': {
@@ -292,6 +351,19 @@ export const MACRO_CALLS = {
 
 /* ────────────────────────────────────────────
    Machine defaults
+
+   These are the initial values for a new job. They're configurable
+   at runtime through the UI but start here as sensible defaults.
+
+   Why these values?
+   - spindleRPM 24000: the recommended speed for 7mm aluminium drilling
+   - safeZ 60: high enough to clear clamps and fixtures
+   - featureZ 60: where the macro starts its descent
+   - footerSafeZ 60: safe height for the final Y return
+   - spindleWaitMs 4: 4 seconds for spindle to reach full RPM
+   - defaultMaterialLength 1000: common beam length (1m)
+   - defaultFromEnd 20: first hole typically 20mm from end
+   - defaultSpacing 50: common hole spacing for end fixtures
    ──────────────────────────────────────────── */
 export const MACHINE_CONFIG = {
   spindleRPM: 24000,

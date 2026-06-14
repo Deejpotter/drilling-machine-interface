@@ -9,9 +9,9 @@ body {
 }
 
 .app {
-  max-width: 640px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 20px 16px 40px;
+  padding: 24px 32px 40px;
 }
 
 .app-header {
@@ -73,6 +73,39 @@ body {
   gap: 10px;
 }
 
+.form-row-group > .form-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.repetitions-row {
+  align-items: center;
+  gap: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.repetitions-input {
+  width: 80px !important;
+  flex: none;
+}
+
 .form-row {
   flex: 1;
   display: flex;
@@ -100,9 +133,25 @@ body {
   transition: border-color 0.15s;
 }
 
-.select:focus, input:focus {
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+input[type="number"]:hover,
+input[type="text"]:hover {
+  border-color: #cbd5e1;
 }
 
 .slot-controls {
@@ -146,10 +195,10 @@ body {
 .slot-pattern-row {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 10px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .slot-pattern-header {
@@ -340,7 +389,7 @@ body {
 
 /* Multiple patterns per slot */
 .slot-patterns-list {
-  margin: 8px 0 16px 12px;
+  margin: 8px 0 16px 0;
   border-left: 2px solid #e2e8f0;
   padding-left: 12px;
 }
@@ -348,10 +397,10 @@ body {
 .slot-pattern-subrow {
   display: grid;
   grid-template-columns: 24px 1fr auto;
-  gap: 8px;
+  gap: 12px;
   align-items: start;
   margin-bottom: 12px;
-  padding: 8px;
+  padding: 12px;
   background: #f8fafc;
   border-radius: 6px;
 }
@@ -365,8 +414,8 @@ body {
 
 .slot-pattern-subrow .slot-pattern-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .slot-pattern-subrow .form-row {
@@ -385,8 +434,8 @@ body {
 
 .slot-pattern-subrow .select,
 .slot-pattern-subrow input {
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: 14px;
+  padding: 8px 10px;
 }
 
 .pattern-actions {
@@ -411,4 +460,26 @@ body {
 .pattern-actions .slot-mini-btn.danger:hover {
   background: #fecaca;
   border-color: #f87171;
+}
+
+/* ── Reference end toggle ────────────────────────────────────────
+ * A clickable label that doubles as the field label for the
+ * "from end / from start" distance input. Indigo matches the
+ * app accent palette. Small caps + letter-spacing make it look
+ * like a control, not static text. Hover background confirms it's
+ * clickable without being distracting. */
+.reference-end-toggle {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #6366f1;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.reference-end-toggle:hover {
+  background: #eef2ff;
 }

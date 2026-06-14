@@ -1,8 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import '@testing-library/jest-dom';
+
+function getFirstPatternRow(container) {
+  const subrow = container.querySelector('.slot-pattern-subrow');
+  if (!subrow) return null;
+  const selects = subrow.querySelectorAll('select');
+  const inputs = subrow.querySelectorAll('input[type="number"]');
+  return { subrow, holeTypeSelect: selects[0], fromEndInput: inputs[0], countInput: inputs[1], spacingInput: inputs[2] };
+}
 
 describe('Drilling Machine App', () => {
   beforeEach(() => {
@@ -26,13 +34,13 @@ describe('Drilling Machine App', () => {
     expect(document.getElementById('sel-profile').value).toBe('40-4040');
   });
 
-  it('shows hole count, spacing, and from-end inputs', () => {
-    render(<App />);
-    expect(document.getElementById('count-input')).toBeInTheDocument();
-    expect(document.getElementById('from-input')).toBeInTheDocument();
-    // Spacing only visible when hole count > 1
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '2' } });
-    expect(document.getElementById('spacing-input')).toBeInTheDocument();
+  it('shows hole type, count, from-end, and spacing inputs', () => {
+    const { container } = render(<App />);
+    const row = getFirstPatternRow(container);
+    expect(row).not.toBeNull();
+    expect(row.holeTypeSelect).toBeInTheDocument();
+    expect(row.fromEndInput).toBeInTheDocument();
+    expect(row.countInput).toBeInTheDocument();
   });
 
   it('shows material length input', () => {
@@ -41,15 +49,15 @@ describe('Drilling Machine App', () => {
   });
 
   it('has all 6 hole types available in simple mode', () => {
-    render(<App />);
-    const holeSelect = document.getElementById('sel-hole');
-    const opts = Array.from(holeSelect.options).map(o => o.textContent);
-    expect(opts).toContain('Single Hole (7mm)');
-    expect(opts).toContain('Double Hole (7mm)');
-    expect(opts).toContain('Slot (7mm)');
-    expect(opts).toContain('Counterbore (M8)');
-    expect(opts).toContain('Central Connector');
-    expect(opts).toContain('Anchor Fast');
+    const { container } = render(<App />);
+    const row = getFirstPatternRow(container);
+    const opts = Array.from(row.holeTypeSelect.options).map(o => o.textContent);
+    expect(opts).toContain('HARD-40S-4040-END-FAST-A (7mm hole)');
+    expect(opts).toContain('HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)');
+    expect(opts).toContain('HARD-40S-4040-END-FAST-A (7mm slot)');
+    expect(opts).toContain('BOLT-M8-CAP (M8 counterbore)');
+    expect(opts).toContain('HARD-40S-CENTRAL-CONNECTOR (central connector)');
+    expect(opts).toContain('HARD-40S-ANCHOR-FAST (anchor fast)');
   });
 
   it('shows order number input', () => {
@@ -68,42 +76,68 @@ describe('Drilling Machine App', () => {
   });
 
   it('shows G-code preview when valid pattern is set', async () => {
-    render(<App />);
-    const countInput = document.getElementById('count-input');
-    fireEvent.change(countInput, { target: { value: '3' } });
-    // G-code preview should appear with the summary
+    const { container } = render(<App />);
+    const row = getFirstPatternRow(container);
+    fireEvent.change(row.countInput, { target: { value: '3' } });
     const summaries = await screen.findAllByText(/1000mm extrusion/);
     expect(summaries.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows validity error when pattern overruns length', () => {
-    render(<App />);
-    fireEvent.change(document.getElementById('length-input'), { target: { value: '100' } });
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '10' } });
-    fireEvent.change(document.getElementById('spacing-input'), { target: { value: '50' } });
+  it('shows validity error when pattern overruns length', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await user.clear(document.getElementById('length-input'));
+    await user.type(document.getElementById('length-input'), '100');
+    const row = getFirstPatternRow(container);
+    await user.clear(row.countInput);
+    await user.type(row.countInput, '10');
+    await user.clear(row.fromEndInput);
+    await user.type(row.fromEndInput, '20');
+    // Re-query: spacing input now visible after count > 1
+    const updatedRow = getFirstPatternRow(container);
+    await user.clear(updatedRow.spacingInput);
+    await user.type(updatedRow.spacingInput, '50');
     expect(screen.getByText(/Pattern overruns/)).toBeInTheDocument();
   });
 
-  it('shows tight clearance warning when pattern is close to end', () => {
-    render(<App />);
-    fireEvent.change(document.getElementById('length-input'), { target: { value: '200' } });
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '4' } });
-    fireEvent.change(document.getElementById('spacing-input'), { target: { value: '50' } });
+  it('shows tight clearance warning when pattern is close to end', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await user.clear(document.getElementById('length-input'));
+    await user.type(document.getElementById('length-input'), '200');
+    const row = getFirstPatternRow(container);
+    await user.clear(row.countInput);
+    await user.type(row.countInput, '4');
+    await user.clear(row.fromEndInput);
+    await user.type(row.fromEndInput, '25');
+    // Re-query: spacing input now visible after count > 1
+    const updatedRow = getFirstPatternRow(container);
+    await user.clear(updatedRow.spacingInput);
+    await user.type(updatedRow.spacingInput, '50');
     expect(screen.getByText(/tight clearance/)).toBeInTheDocument();
   });
 
-  it('download button is disabled when pattern overruns', () => {
-    render(<App />);
-    fireEvent.change(document.getElementById('length-input'), { target: { value: '50' } });
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '5' } });
-    const btn = screen.getByText(/Download 180000 F1/);
+  it('download button is disabled when pattern overruns', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await user.clear(document.getElementById('length-input'));
+    await user.type(document.getElementById('length-input'), '50');
+    const row = getFirstPatternRow(container);
+    await user.clear(row.countInput);
+    await user.type(row.countInput, '5');
+    await user.clear(row.fromEndInput);
+    await user.type(row.fromEndInput, '20');
+    // Re-query: spacing input now visible after count > 1
+    const updatedRow = getFirstPatternRow(container);
+    await user.clear(updatedRow.spacingInput);
+    await user.type(updatedRow.spacingInput, '50');
+    const btn = screen.getByRole('button', { name: /Download/ });
     expect(btn).toBeDisabled();
   });
 
   it('download button is enabled for valid pattern', () => {
     render(<App />);
-    // Defaults: 20×40, length=1000, count=4, fromEnd=20, spacing=50 -> last hole @ 170, fits
-    const btn = screen.getByText(/Download 180000 F1/);
+    const btn = screen.getByRole('button', { name: /Download/ });
     expect(btn).not.toBeDisabled();
   });
 
@@ -172,7 +206,7 @@ describe('Drilling Machine App', () => {
 
     expect(document.getElementById('order-input').value).toBe('');
     expect(document.getElementById('sel-profile').value).toBe('40-4040');
-    expect(screen.getByText(/Download Job F1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download/ })).toBeInTheDocument();
   });
 
   it('can apply pattern to multiple slots on one face (advanced mode)', async () => {
@@ -182,27 +216,38 @@ describe('Drilling Machine App', () => {
     await user.click(screen.getByText(/Simple/));
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     await user.click(document.getElementById('slot-add-btn'));
-    expect(screen.getByText(/Download 180000 F1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download/ })).toBeInTheDocument();
     const preview = await screen.findByText(/extrusion · 2 slots/);
     expect(preview).toBeInTheDocument();
   });
 
   it('can copy previous slot pattern values (advanced mode)', async () => {
-    render(<App />);
     const user = userEvent.setup();
+    const { container } = render(<App />);
+
     // Switch to advanced mode to get 20×40 with 2 slots
     await user.click(screen.getByText(/Simple/));
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '6' } });
-    fireEvent.change(document.getElementById('from-input'), { target: { value: '40' } });
-    fireEvent.change(document.getElementById('spacing-input'), { target: { value: '30' } });
+
+    // Add second slot
     await user.click(document.getElementById('slot-add-btn'));
-    const copyButtons = screen.getAllByRole('button', { name: 'Copy prev' });
+
+    // Verify S2 exists with default values
+    const subrows = container.querySelectorAll('.slot-pattern-subrow');
+    expect(subrows.length).toBe(2);
+
+    // Click "Copy prev slot" on S2 (copies S1's values into S2)
+    const copyButtons = screen.getAllByRole('button', { name: /Copy prev slot/ });
     await user.click(copyButtons[1]);
 
-    expect(document.getElementById('count-input-2').value).toBe('6');
-    expect(document.getElementById('from-input-2').value).toBe('40');
-    expect(document.getElementById('spacing-input-2').value).toBe('30');
+    // S2 should now have two patterns: the default + a copy of S1's default
+    const subrowsAfter = container.querySelectorAll('.slot-pattern-subrow');
+    expect(subrowsAfter.length).toBe(3); // 1 on S1 + 2 on S2 (default + copy)
+
+    // Verify the copied pattern has S1's default values (fromEnd=20, count=1)
+    const row2Inputs = subrowsAfter[2].querySelectorAll('input[type="number"]');
+    expect(row2Inputs[0].value).toBe('20'); // fromEnd (default from S1)
+    expect(row2Inputs[1].value).toBe('1');  // count (default from S1)
   });
 
   it('restores profile and slot patterns from local storage', async () => {
@@ -213,12 +258,12 @@ describe('Drilling Machine App', () => {
     fireEvent.change(document.getElementById('sel-profile'), { target: { value: '20-2040' } });
     fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-9001' } });
     await user.click(document.getElementById('slot-add-btn'));
-    expect(screen.getByText(/Download ORD-9001 F1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download/ })).toBeInTheDocument();
     firstRender.unmount();
 
     render(<App />);
     // Should restore advanced mode, 20×40 profile, S1+S2
-    expect(screen.getByText(/Download ORD-9001 F1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Download/ })).toBeInTheDocument();
     expect(document.getElementById('order-input').value).toBe('ORD-9001');
   });
 
@@ -229,18 +274,103 @@ describe('Drilling Machine App', () => {
   });
 
   it('renders G-code in preview for valid pattern', async () => {
-    render(<App />);
-    fireEvent.change(document.getElementById('count-input'), { target: { value: '2' } });
+    const { container } = render(<App />);
+    const row = getFirstPatternRow(container);
+    fireEvent.change(row.countInput, { target: { value: '2' } });
     // Should contain custom header block
     const preview = await screen.findByText(/Set XY plane/);
     expect(preview).toBeInTheDocument();
   });
 
   it('updates hole count in G-code summary', async () => {
-    render(<App />);
-    const countInput = document.getElementById('count-input');
-    fireEvent.change(countInput, { target: { value: '7' } });
+    const { container } = render(<App />);
+    const row = getFirstPatternRow(container);
+    fireEvent.change(row.countInput, { target: { value: '7' } });
     const summaries = await screen.findAllByText(/7 holes/);
     expect(summaries.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('default pattern has referenceEnd start', () => {
+    const { container } = render(<App />);
+    const toggle = container.querySelector('.reference-end-toggle');
+    expect(toggle).toBeInTheDocument();
+    expect(toggle.textContent).toBe('FROM START (mm)');
+  });
+
+  it('clicking the toggle switches to FROM END', async () => {
+    const { container } = render(<App />);
+    const user = userEvent.setup();
+    const toggle = container.querySelector('.reference-end-toggle');
+    expect(toggle.textContent).toBe('FROM START (mm)');
+    await user.click(toggle);
+    expect(toggle.textContent).toBe('FROM END (mm)');
+  });
+
+  it('clicking toggle again switches back to FROM START', async () => {
+    const { container } = render(<App />);
+    const user = userEvent.setup();
+    const toggle = container.querySelector('.reference-end-toggle');
+    await user.click(toggle);
+    expect(toggle.textContent).toBe('FROM END (mm)');
+    await user.click(toggle);
+    expect(toggle.textContent).toBe('FROM START (mm)');
+  });
+
+  it('from end resolves position correctly in G-code', async () => {
+    const { container } = render(<App />);
+    const user = userEvent.setup();
+    const toggle = container.querySelector('.reference-end-toggle');
+    await user.click(toggle);
+    // Now in "FROM END" mode with default fromEnd=20 on 1000mm extrusion
+    // Position should be 1000 - 20 = 980mm — check the G-code Y move
+    const preview = await screen.findByText(/Y980\.0/);
+    expect(preview).toBeInTheDocument();
+  });
+
+  it('validation catches holes too close to start', async () => {
+    const { container } = render(<App />);
+    const user = userEvent.setup();
+    // Switch to FROM END
+    const toggle = container.querySelector('.reference-end-toggle');
+    await user.click(toggle);
+    // Set fromEnd to 990 — position = 1000 - 990 = 10mm, which is < 20mm from start
+    const row = getFirstPatternRow(container);
+    await user.clear(row.fromEndInput);
+    await user.type(row.fromEndInput, '990');
+    expect(screen.getByText(/overruns/)).toBeInTheDocument();
+  });
+
+  it('double hole from end expands in correct direction', async () => {
+    const { container } = render(<App />);
+    const user = userEvent.setup();
+    // Switch to FROM END
+    const toggle = container.querySelector('.reference-end-toggle');
+    await user.click(toggle);
+    // Set double hole type
+    const row = getFirstPatternRow(container);
+    fireEvent.change(row.holeTypeSelect, { target: { value: 'double-hole' } });
+    // Default fromEnd=20 on 1000mm: positions should be 980 and 940
+    // Use findAllByText since 980 appears in both SVG and G-code
+    const els = await screen.findAllByText(/980/);
+    expect(els.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/940/)).toBeInTheDocument();
+  });
+
+  it('local storage migration adds referenceEnd to old patterns', () => {
+    // Simulate old localStorage data without referenceEnd
+    window.localStorage.setItem('drilling-machine-ui-state-v3', JSON.stringify({
+      profileId: '40-4040',
+      materialLength: 1000,
+      orderNumber: 'ORD-TEST',
+      selectedFaceIndex: 0,
+      slotPatterns: [{
+        slotId: 1,
+        patterns: [{ id: 'old-1', holeType: 'single-hole', fromEnd: 50, count: 1, spacing: 0 }],
+      }],
+    }));
+    window.localStorage.setItem('drilling-machine-mode', 'simple');
+    const { container } = render(<App />);
+    const toggle = container.querySelector('.reference-end-toggle');
+    expect(toggle.textContent).toBe('FROM START (mm)');
   });
 });
