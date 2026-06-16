@@ -28,7 +28,7 @@ export default function useJobDerived({
      ──────────────────────────────────────────── */
   const job = useMemo(() => {
     const now = new Date();
-    const dateStr = now.toISOString().slice(0,10).replace(/-/g,'');
+    const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getFullYear()).slice(2)}`; // DDMMYY
     const fallbackStamp = `${now.toISOString().slice(11,19).replace(/:/g,'')}${String(now.getMilliseconds()).padStart(3, '0')}`;
     const repSuffix = repetitions > 1 ? ` ×${repetitions}` : '';
     const name = orderNumber.trim() 
@@ -70,7 +70,7 @@ export default function useJobDerived({
           face: `F${faceNumber}`,
           faceLabel: face.label,
           slot: slot.slotId,
-          slotPosition: slotMap.get(slot.slotId)?.position || 0,
+          slotXOffset: slotMap.get(slot.slotId)?.xOffset ?? 0,
           slot_width_mm: slotMap.get(slot.slotId)?.width || 0,
           operationIndex: patternIndex,
           holes: Array.from({ length: pattern.count }, (_, i) => ({
@@ -157,7 +157,7 @@ export default function useJobDerived({
       return {
         slotId: slot.slotId,
         label: `S${slot.slotId}`,
-        slotPosition: slotInfo?.position ?? 0,
+        xOffset: slotInfo?.xOffset ?? 0,
         position: slotInfo?.position ?? 0,
         width: slotInfo?.width ?? 0,
         holePositions: allHolePositions,

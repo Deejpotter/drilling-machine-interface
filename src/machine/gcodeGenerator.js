@@ -20,6 +20,10 @@
 
 import { MACRO_CALLS, MACHINE_CONFIG, HOLE_TYPE_SKUS } from './config.js';
 
+/** Pad G-code to a fixed width so comments line up. */
+const PAD = 30;
+const g = (code, comment) => code.padEnd(PAD) + `; ${comment}`;
+
 /**
  * Generate the G-code header.
  *
@@ -52,17 +56,19 @@ function generateHeader(job, lines) {
   nc(`;  Total operations: ${job.operations.length}`);
   nc(`; ──────────────────────────────────────`);
   nc(``);
-  nc(`M9                          ; Coolant off`);
-  nc(`G17                         ; Set XY plane`);
-  nc(`G21                         ; Set metric`);
-  nc(`G90                         ; Absolute positioning`);
-  nc(`G54 G0 Z${MACHINE_CONFIG.safeZ}                  ; Go to safe Z in G54`);
-  nc(`G54 G0 X0 Y0                ; Go to X0 Y0 in G54`);
-  nc(`; T1 M6                     ; Tool change (uncomment if needed)`);
-  nc(`S${MACHINE_CONFIG.spindleRPM} M3                   ; Start spindle @ ${MACHINE_CONFIG.spindleRPM} RPM`);
-  nc(`G54 G0 Z${MACHINE_CONFIG.safeZ}                  ; Safe Z`);
-  nc(`G10 L20 P2 X0 Y0 Z${MACHINE_CONFIG.safeZ}        ; Set G55 work offset`);
-  nc(`G4 P${MACHINE_CONFIG.spindleWaitMs}                       ; Wait for spindle to reach speed`);
+
+  // ─── Setup ───
+  nc(g('M9', 'Coolant off'));
+  nc(g('G17', 'Set XY plane'));
+  nc(g('G21', 'Set metric'));
+  nc(g('G90', 'Absolute positioning'));
+  nc(g(`G54 G0 Z${MACHINE_CONFIG.safeZ}`, 'Go to safe Z in G54'));
+  nc(g('G54 G0 X0 Y0', 'Go to X0 Y0 in G54'));
+  nc(g('; T1 M6', 'Tool change (uncomment if needed)'));
+  nc(g(`S${MACHINE_CONFIG.spindleRPM} M3`, `Start spindle @ ${MACHINE_CONFIG.spindleRPM} RPM`));
+  nc(g(`G54 G0 Z${MACHINE_CONFIG.safeZ}`, 'Safe Z'));
+  nc(g(`G10 L20 P2 X0 Y0 Z${MACHINE_CONFIG.safeZ}`, 'Set G55 work offset'));
+  nc(g(`G4 P${MACHINE_CONFIG.spindleWaitMs}`, 'Wait for spindle to reach speed'));
   nc(``);
 }
 
@@ -75,8 +81,18 @@ function generateHeader(job, lines) {
  */
 function moveToHole(xPosition, yPosition, lines) {
   const nc = (s) => lines.push(s);
-  nc(`G55 G0 Z${MACHINE_CONFIG.safeZ}                ; Safe Z in G55`);
-  nc(`G55 G0 X${xPosition} Y${yPosition.toFixed(1)}   ; Move to hole position`);
+  nc(g(`G55 G0 Z${MACHINE_CONFIG.safeZ}`, 'Safe Z in G55'));
+  nc(g(`G55 G0 X${xPosition} Y${yPosition.toFixed(1)}`, 'Move to hole position'));
+}
+
+/**
+ * Get the SKU description for a hole type at a given position.
+ */
+function skuDescription(holeType, position) {
+  const skuInfo = HOLE_TYPE_SKUS[holeType];
+  return skuInfo
+    ? `${skuInfo.sku} (${skuInfo.desc} @ ${position}mm)`
+    : MACRO_CALLS[holeType]?.slot1?.comment || 'Unknown feature';
 }
 
 /**
@@ -87,13 +103,10 @@ function moveToHole(xPosition, yPosition, lines) {
  * macro can use relative coordinates internally. Then M98 P####
  * calls the pre-loaded macro that performs the actual drilling.
  */
-function drillHole(macro, holeType, position, lines) {
+function drillHole(macro, lines) {
   const nc = (s) => lines.push(s);
-  const skuInfo = HOLE_TYPE_SKUS[holeType];
-  const skuDesc = skuInfo ? `${skuInfo.sku} (${skuInfo.desc} @ ${position}mm)` : macro.comment;
-  nc(`; ${skuDesc}`);
-  nc(`G10 L20 P3 X0 Y0 Z${MACHINE_CONFIG.featureZ}      ; Set G56 at this feature`);
-  nc(`M98 P${macro.p}            ; Call feature macro — ${macro.comment}`);
+  nc(g(`G10 L20 P3 X0 Y0 Z${MACHINE_CONFIG.featureZ}`, 'Set G56 at this feature'));
+  nc(g(`M98 P${macro.p}`, `Call feature macro — ${macro.comment}`));
   nc(``);
 }
 
@@ -107,10 +120,12 @@ function drillHole(macro, holeType, position, lines) {
  */
 function generateFooter(job, lines) {
   const nc = (s) => lines.push(s);
-  nc(`G54 G0 Z${MACHINE_CONFIG.footerSafeZ}                  ; Safe Z in machine coords`);
-  nc(`M5                          ; Spindle off`);
-  nc(`G54 G0 X0 Y${job.materialLength + 50}                ; Return past end of beam`);
-  nc(`M99                         ; Subroutine return`);
+  nc(`; ─── End ───`);
+  nc(``);
+  nc(g(`G54 G0 Z${MACHINE_CONFIG.footerSafeZ}`, 'Safe Z in machine coords'));
+  nc(g('M5', 'Spindle off'));
+  nc(g(`G54 G0 X0 Y${job.materialLength + 50}`, 'Return past end of beam'));
+  nc(g('M99', 'Subroutine return'));
   nc(``);
   nc(`; ──────────────────────────────────────`);
   nc(`;  End of ${job.name}`);
@@ -132,6 +147,8 @@ export function generateGcode(job) {
   // ──────────────────────────────────────
   // 2. Process each operation (one face/slot)
   // ──────────────────────────────────────
+  lines.push(`; ─── Operations ───`);
+  lines.push(``);
   for (const op of job.operations) {
     const { profile, face, holes } = op;
     const slotTag = op.slot ? ` · S${op.slot}` : '';
@@ -139,9 +156,10 @@ export function generateGcode(job) {
     lines.push(`;  Slot width: ${op.slot_width_mm}mm`);
     lines.push(``);
 
-    // Slot-specific X offset from config (negative = towards operator)
-    // e.g., 40×80: slot 1 @ 20mm → X-20, slot 2 @ 60mm → X-60
-    const slotXOffset = op.slotPosition ? -op.slotPosition : 0;
+    // Slot-specific X offset from config (e.g., 40×80: S1 = X0, S2 = X40)
+    // Defined per-slot in the extrusion profile config so different
+    // profiles can have different X coordinates for their slots.
+    const slotXOffset = op.slotXOffset ?? 0;
 
     // ──────────────────────────────────────
     // 3. For each hole: move, set offset, drill
@@ -154,11 +172,14 @@ export function generateGcode(job) {
       if (!macro) continue;
       const y = hole.distance_from_end_mm;
 
+      // SKU comment first — describes what's about to happen
+      lines.push(`; ${skuDescription(hole.holeType, y)}`);
+
       // Move to hole position with slot-specific X offset
       moveToHole(slotXOffset, y, lines);
 
-      // Set G56 and call macro with SKU comment
-      drillHole(macro, hole.holeType, y, lines);
+      // Set G56 and call macro
+      drillHole(macro, lines);
     }
   }
 
@@ -184,7 +205,8 @@ function buildBaseFilename(job) {
   const profileBase = (job.profile || 'unknown').toLowerCase();
   const faceLabel = job.faceLabel || 'F1';
   const patternMod = job.patternCount > 1 ? `_${job.operationIndex + 1}` : '';
-  const dateStamp = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // ddmmyy
+  const d = new Date();
+  const dateStamp = `${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}`; // DDMMYY
   return `${orderBase}-${profileBase}${patternMod}-${faceLabel}-${dateStamp}`;
 }
 

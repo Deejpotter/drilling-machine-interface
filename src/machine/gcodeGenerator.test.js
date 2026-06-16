@@ -38,11 +38,11 @@ describe('G-code Generator', () => {
 
   it('includes custom header block with 24000 RPM', () => {
     const gcode = generateGcode(mockJob);
-    expect(gcode).toContain('M9                          ; Coolant off');
-    expect(gcode).toContain('G17                         ; Set XY plane');
-    expect(gcode).toContain('G21                         ; Set metric');
-    expect(gcode).toContain('S24000 M3                   ; Start spindle @ 24000 RPM');
-    expect(gcode).toContain('G10 L20 P2 X0 Y0 Z60        ; Set G55 work offset');
+    expect(gcode).toContain('M9                            ; Coolant off');
+    expect(gcode).toContain('G17                           ; Set XY plane');
+    expect(gcode).toContain('G21                           ; Set metric');
+    expect(gcode).toContain('S24000 M3                     ; Start spindle @ 24000 RPM');
+    expect(gcode).toContain('G10 L20 P2 X0 Y0 Z60          ; Set G55 work offset');
   });
 
   it('uses M98 P calls with Patch P-numbers', () => {
@@ -64,7 +64,7 @@ describe('G-code Generator', () => {
 
   it('sets G56 at each feature position', () => {
     const gcode = generateGcode(mockJob);
-    expect(gcode).toContain('G10 L20 P3 X0 Y0 Z60      ; Set G56 at this feature');
+    expect(gcode).toContain('G10 L20 P3 X0 Y0 Z60          ; Set G56 at this feature');
   });
 
   it('has operation section comments', () => {
@@ -73,7 +73,7 @@ describe('G-code Generator', () => {
     expect(gcode).toContain('40×80');
   });
 
-  it('uses slotPosition from config for X offset', () => {
+  it('uses slotXOffset from config for X offset', () => {
     const job = {
       name: 'slot-test',
       materialLength: 1000,
@@ -82,7 +82,7 @@ describe('G-code Generator', () => {
           profile: '40×80',
           face: 'F1',
           slot: 1,
-          slotPosition: 20,
+          slotXOffset: 0,
           slot_width_mm: 8,
           holes: [{ step: 1, holeType: 'single-hole', distance_from_end_mm: 20 }],
         },
@@ -90,16 +90,16 @@ describe('G-code Generator', () => {
           profile: '40×80',
           face: 'F1',
           slot: 2,
-          slotPosition: 60,
+          slotXOffset: 40,
           slot_width_mm: 8,
           holes: [{ step: 1, holeType: 'single-hole', distance_from_end_mm: 20 }],
         },
       ],
     };
     const gcode = generateGcode(job);
-    // X offset = -slotPosition (negative = towards operator)
-    expect(gcode).toContain('G55 G0 X-20 Y20.0');
-    expect(gcode).toContain('G55 G0 X-60 Y20.0');
+    // 40×80: slot 1 = X0, slot 2 = X40 (per Patch's confirmation)
+    expect(gcode).toContain('G55 G0 X0 Y20.0');
+    expect(gcode).toContain('G55 G0 X40 Y20.0');
   });
 
   it('uses correct P-numbers for slot 2', () => {
@@ -123,11 +123,11 @@ describe('G-code Generator', () => {
 
   it('finishes with M99 subroutine return', () => {
     const gcode = generateGcode(mockJob);
-    expect(gcode).toContain('G54 G0 Z60                  ; Safe Z in machine coords');
-    expect(gcode).toContain('M5                          ; Spindle off');
+    expect(gcode).toContain('G54 G0 Z60                    ; Safe Z in machine coords');
+    expect(gcode).toContain('M5                            ; Spindle off');
     expect(gcode).toContain('G54 G0 X0 Y1050');
     expect(gcode).toContain('; Return past end of beam');
-    expect(gcode).toContain('M99                         ; Subroutine return');
+    expect(gcode).toContain('M99                           ; Subroutine return');
     expect(gcode).not.toContain('M30');
   });
 

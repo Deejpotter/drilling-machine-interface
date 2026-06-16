@@ -77,7 +77,7 @@ function getInitialState() {
     mode: 'simple',
     profileId: fallbackProfile.id,
     materialLength: MACHINE_CONFIG.defaultMaterialLength,
-    orderNumber: '180000',
+    orderNumber: '',
     selectedFaceIndex: fallbackFaceIndex,
     slotPatterns: [createDefaultPattern(fallbackFace.slots[0].id)],
     repetitions: 1,
@@ -144,7 +144,7 @@ function getInitialState() {
       mode,
       profileId: profile.id,
       materialLength: Math.max(10, Number(parsed.materialLength) || MACHINE_CONFIG.defaultMaterialLength),
-      orderNumber: typeof parsed.orderNumber === 'string' && parsed.orderNumber.trim().length > 0 ? parsed.orderNumber : '180000',
+      orderNumber: typeof parsed.orderNumber === 'string' && parsed.orderNumber.trim() !== '180000' && parsed.orderNumber.trim().length > 0 ? parsed.orderNumber : '',
       selectedFaceIndex: faceIndex,
       slotPatterns: slotPatterns.length > 0 ? slotPatterns : [createDefaultPattern(face.slots[0].id)],
       repetitions: Math.max(1, Number(parsed.repetitions) || 1),
@@ -179,7 +179,7 @@ export default function useJobState() {
   const slotPatternsSorted = [...slotPatterns].sort((a, b) => a.slotId - b.slotId);
   const selectedSlotTags = slotPatternsSorted.map(p => `S${p.slotId}`);
 
-  const hasOrderNumber = orderNumber.trim().length > 0;
+  const hasOrderNumber = orderNumber.trim().length > 0 && orderNumber.trim() !== '180000';
   const orderLabel = hasOrderNumber ? orderNumber.trim() : 'Job';
   const availableHolesForFace = filteredHoleTypes.filter(h => h.maxSlots >= face.slots.length);
   const faceWidth = face.width || 40;

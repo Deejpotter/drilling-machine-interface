@@ -120,6 +120,7 @@ describe('Drilling Machine App', () => {
   it('download button is disabled when pattern overruns', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-TEST' } });
     await user.clear(document.getElementById('length-input'));
     await user.type(document.getElementById('length-input'), '50');
     const row = getFirstPatternRow(container);
@@ -137,6 +138,7 @@ describe('Drilling Machine App', () => {
 
   it('download button is enabled for valid pattern', () => {
     render(<App />);
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-TEST' } });
     const btn = screen.getByRole('button', { name: /Download/ });
     expect(btn).not.toBeDisabled();
   });
@@ -156,6 +158,7 @@ describe('Drilling Machine App', () => {
       writable: true,
     });
 
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-TEST' } });
     await user.click(screen.getByRole('button', { name: /Save to drive/ }));
     expect(screen.getByText(/not supported in this browser/i)).toBeInTheDocument();
 
@@ -185,6 +188,7 @@ describe('Drilling Machine App', () => {
       writable: true,
     });
 
+    fireEvent.change(document.getElementById('order-input'), { target: { value: 'ORD-1' } });
     await user.click(screen.getByRole('button', { name: /Save to drive/ }));
     expect(await screen.findByText(/Saved ORD-1-F1.nc\./)).toBeInTheDocument();
     expect(pickerMock).toHaveBeenCalled();

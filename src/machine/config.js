@@ -26,6 +26,10 @@
    Slot positions are "centre from end" — the distance from the
    extrusion end to the centre of the slot channel. This matters
    because the drilling machine positions relative to the end.
+
+   `xOffset` is the G-code X coordinate Patch uses for that slot
+   (40-series: slot 1 = X0, slot 2 = X40). This is per-profile config
+   so other series can override when their subroutines are written.
    ──────────────────────────────────────────── */
 export const EXTRUSION_PROFILES = [
   {
@@ -35,10 +39,10 @@ export const EXTRUSION_PROFILES = [
     width: 20,
     height: 20,
     faces: [
-      { id: 'face1', label: 'Face 1 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25 }] },
-      { id: 'face2', label: 'Face 2 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25 }] },
-      { id: 'face3', label: 'Face 3 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25 }] },
-      { id: 'face4', label: 'Face 4 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25 }] },
+      { id: 'face1', label: 'Face 1 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25, xOffset: 0 }] },
+      { id: 'face2', label: 'Face 2 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25, xOffset: 0 }] },
+      { id: 'face3', label: 'Face 3 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25, xOffset: 0 }] },
+      { id: 'face4', label: 'Face 4 (20mm)', width: 20, slots: [{ id: 1, position: 10, width: 6.25, xOffset: 0 }] },
     ],
   },
   {
@@ -50,24 +54,24 @@ export const EXTRUSION_PROFILES = [
     faces: [
       {
         id: 'face1', label: 'Face 1 (40mm side)', width: 40, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
         ]
       },
       {
         id: 'face2', label: 'Face 2 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
       {
         id: 'face3', label: 'Face 3 (40mm side)', width: 40, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
         ]
       },
       {
         id: 'face4', label: 'Face 4 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
     ],
@@ -81,26 +85,26 @@ export const EXTRUSION_PROFILES = [
     faces: [
       {
         id: 'face1', label: 'Face 1 (60mm side)', width: 60, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
+          { id: 3, position: 50, width: 6.25, xOffset: 40 },
         ]
       },
       {
         id: 'face2', label: 'Face 2 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
       {
         id: 'face3', label: 'Face 3 (60mm side)', width: 60, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
+          { id: 3, position: 50, width: 6.25, xOffset: 40 },
         ]
       },
       {
         id: 'face4', label: 'Face 4 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
     ],
@@ -114,28 +118,28 @@ export const EXTRUSION_PROFILES = [
     faces: [
       {
         id: 'face1', label: 'Face 1 (80mm side)', width: 80, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
-          { id: 4, position: 70, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
+          { id: 3, position: 50, width: 6.25, xOffset: 40 },
+          { id: 4, position: 70, width: 6.25, xOffset: 60 },
         ]
       },
       {
         id: 'face2', label: 'Face 2 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
       {
         id: 'face3', label: 'Face 3 (80mm side)', width: 80, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
-          { id: 4, position: 70, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
+          { id: 3, position: 50, width: 6.25, xOffset: 40 },
+          { id: 4, position: 70, width: 6.25, xOffset: 60 },
         ]
       },
       {
         id: 'face4', label: 'Face 4 (20mm side)', width: 20, slots: [
-          { id: 1, position: 10, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
         ]
       },
     ],
@@ -149,28 +153,28 @@ export const EXTRUSION_PROFILES = [
     faces: [
       {
         id: 'face1', label: 'Face 1 (80mm side)', width: 80, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
-          { id: 3, position: 50, width: 6.25 },
-          { id: 4, position: 70, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
+          { id: 3, position: 50, width: 6.25, xOffset: 40 },
+          { id: 4, position: 70, width: 6.25, xOffset: 60 },
         ]
       },
       {
         id: 'face2', label: 'Face 2 (40mm side)', width: 40, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
         ]
       },
       {
         id: 'face3', label: 'Face 3 (80mm side — outer slots only)', width: 80, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 4, position: 70, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 4, position: 70, width: 6.25, xOffset: 60 },
         ]
       },
       {
         id: 'face4', label: 'Face 4 (40mm side)', width: 40, slots: [
-          { id: 1, position: 10, width: 6.25 },
-          { id: 2, position: 30, width: 6.25 },
+          { id: 1, position: 10, width: 6.25, xOffset: 0 },
+          { id: 2, position: 30, width: 6.25, xOffset: 20 },
         ]
       },
     ],
@@ -183,10 +187,10 @@ export const EXTRUSION_PROFILES = [
     width: 30,
     height: 30,
     faces: [
-      { id: 'face1', label: 'Face 1 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8 }] },
-      { id: 'face2', label: 'Face 2 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8 }] },
-      { id: 'face3', label: 'Face 3 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8 }] },
-      { id: 'face4', label: 'Face 4 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8 }] },
+      { id: 'face1', label: 'Face 1 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8, xOffset: 0 }] },
+      { id: 'face2', label: 'Face 2 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8, xOffset: 0 }] },
+      { id: 'face3', label: 'Face 3 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8, xOffset: 0 }] },
+      { id: 'face4', label: 'Face 4 (30mm)', width: 30, slots: [{ id: 1, position: 15, width: 8, xOffset: 0 }] },
     ],
   },
   // 40-series (placeholder structure — update with actual dimensions)
@@ -197,10 +201,10 @@ export const EXTRUSION_PROFILES = [
     width: 40,
     height: 40,
     faces: [
-      { id: 'face1', label: 'Face 1 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face2', label: 'Face 2 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face3', label: 'Face 3 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
-      { id: 'face4', label: 'Face 4 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8 }] },
+      { id: 'face1', label: 'Face 1 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8, xOffset: 0 }] },
+      { id: 'face2', label: 'Face 2 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8, xOffset: 0 }] },
+      { id: 'face3', label: 'Face 3 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8, xOffset: 0 }] },
+      { id: 'face4', label: 'Face 4 — S1 (40mm)', width: 40, slots: [{ id: 1, position: 20, width: 8, xOffset: 0 }] },
     ],
   },
   {
@@ -212,24 +216,24 @@ export const EXTRUSION_PROFILES = [
     faces: [
       {
         id: 'face1', label: 'Face 1 — S1 S2 (80mm)', width: 80, slots: [
-          { id: 1, position: 20, width: 8 },
-          { id: 2, position: 60, width: 8 },
+          { id: 1, position: 20, width: 8, xOffset: 0 },
+          { id: 2, position: 60, width: 8, xOffset: 40 },
         ]
       },
       {
         id: 'face2', label: 'Face 2 — S1 (40mm)', width: 40, slots: [
-          { id: 1, position: 20, width: 8 },
+          { id: 1, position: 20, width: 8, xOffset: 0 },
         ]
       },
       {
         id: 'face3', label: 'Face 3 — S1 S2 (80mm)', width: 80, slots: [
-          { id: 1, position: 20, width: 8 },
-          { id: 2, position: 60, width: 8 },
+          { id: 1, position: 20, width: 8, xOffset: 0 },
+          { id: 2, position: 60, width: 8, xOffset: 40 },
         ]
       },
       {
         id: 'face4', label: 'Face 4 — S1 (40mm)', width: 40, slots: [
-          { id: 1, position: 20, width: 8 },
+          { id: 1, position: 20, width: 8, xOffset: 0 },
         ]
       },
     ],
