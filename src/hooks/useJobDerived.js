@@ -73,23 +73,39 @@ export default function useJobDerived({
           slotXOffset: slotMap.get(slot.slotId)?.xOffset ?? 0,
           slot_width_mm: slotMap.get(slot.slotId)?.width || 0,
           operationIndex: patternIndex,
-          holes: Array.from({ length: pattern.count }, (_, i) => ({
-            step: i + 1,
-            holeType: pattern.holeType,
-            distance_from_end_mm: resolvePosition(pattern, i),
-          })),
+          holes: (() => {
+            const base = Array.from({ length: pattern.count }, (_, i) => ({
+              step: i + 1,
+              holeType: pattern.holeType,
+              distance_from_end_mm: resolvePosition(pattern, i),
+            }));
+            /* Double-hole: emit two holes per pattern position,
+             * spaced 40mm apart (matches HARD-40S-4080-END-FAST-A). */
+            if (pattern.holeType === 'double-hole') {
+              return base.flatMap(h => pattern.referenceEnd === 'end'
+                ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
+                : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
+            }
+            return base;
+          })(),
         }))
       ),
       holes: slotPatternsSorted.flatMap(slot =>
-        slot.patterns.flatMap(pattern =>
-          Array.from({ length: pattern.count }, (_, i) => ({
+        slot.patterns.flatMap(pattern => {
+          const base = Array.from({ length: pattern.count }, (_, i) => ({
             step: i + 1,
             holeType: pattern.holeType,
             distance_from_end_mm: resolvePosition(pattern, i),
             slot: slot.slotId,
             patternId: pattern.id,
-          }))
-        )
+          }));
+          if (pattern.holeType === 'double-hole') {
+            return base.flatMap(h => pattern.referenceEnd === 'end'
+              ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
+              : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
+          }
+          return base;
+        })
       ),
     };
   }, [materialLength, orderNumber, profile, faceNumber, slotPatternsSorted, slotMap, repetitions]);

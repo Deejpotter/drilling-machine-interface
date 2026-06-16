@@ -354,10 +354,11 @@ describe('Drilling Machine App', () => {
     const row = getFirstPatternRow(container);
     fireEvent.change(row.holeTypeSelect, { target: { value: 'double-hole' } });
     // Default fromEnd=20 on 1000mm: positions should be 980 and 940
-    // Use findAllByText since 980 appears in both SVG and G-code
-    const els = await screen.findAllByText(/980/);
-    expect(els.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/940/)).toBeInTheDocument();
+    // Check the G-code preview specifically (avoid the SVG position labels)
+    const gcodePreview = container.querySelector('.gcode-preview');
+    expect(gcodePreview).toBeTruthy();
+    expect(gcodePreview.textContent).toContain('Y980.0');
+    expect(gcodePreview.textContent).toContain('Y940.0');
   });
 
   it('local storage migration adds referenceEnd to old patterns', () => {
