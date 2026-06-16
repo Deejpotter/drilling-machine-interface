@@ -139,8 +139,9 @@ export function generateGcode(job) {
     lines.push(`;  Slot width: ${op.slot_width_mm}mm`);
     lines.push(``);
 
-    // Slot-specific X offset: slot 1 = X0, slot 2 = X-60 (60mm slot-to-slot on 40×80)
-    const slotXOffset = op.slot === 2 ? -60 : 0;
+    // Slot-specific X offset from config (negative = towards operator)
+    // e.g., 40×80: slot 1 @ 20mm → X-20, slot 2 @ 60mm → X-60
+    const slotXOffset = op.slotPosition ? -op.slotPosition : 0;
 
     // ──────────────────────────────────────
     // 3. For each hole: move, set offset, drill

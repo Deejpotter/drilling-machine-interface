@@ -73,7 +73,7 @@ describe('G-code Generator', () => {
     expect(gcode).toContain('40×80');
   });
 
-  it('uses X0 for slot 1 and X-60 for slot 2', () => {
+  it('uses slotPosition from config for X offset', () => {
     const job = {
       name: 'slot-test',
       materialLength: 1000,
@@ -82,6 +82,7 @@ describe('G-code Generator', () => {
           profile: '40×80',
           face: 'F1',
           slot: 1,
+          slotPosition: 20,
           slot_width_mm: 8,
           holes: [{ step: 1, holeType: 'single-hole', distance_from_end_mm: 20 }],
         },
@@ -89,14 +90,15 @@ describe('G-code Generator', () => {
           profile: '40×80',
           face: 'F1',
           slot: 2,
+          slotPosition: 60,
           slot_width_mm: 8,
           holes: [{ step: 1, holeType: 'single-hole', distance_from_end_mm: 20 }],
         },
       ],
     };
     const gcode = generateGcode(job);
-    // Slot 1 uses X0, slot 2 uses X-60
-    expect(gcode).toContain('G55 G0 X0 Y20.0');
+    // X offset = -slotPosition (negative = towards operator)
+    expect(gcode).toContain('G55 G0 X-20 Y20.0');
     expect(gcode).toContain('G55 G0 X-60 Y20.0');
   });
 

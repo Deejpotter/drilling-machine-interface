@@ -86,10 +86,10 @@ M98 P[Feature Macro] (See Patch macro table)
 
 ##### Slot-specific offsets
 
-**Slot 1:** Offsets at X0
+**Slot 1:** Offsets at X-20
 ```
 G55 G0 X0 Y[HolePos]
-G10 L20 P3 X0 Y0 Z60
+G10 L20 P3 X-20 Y0 Z60
 M98 P[Feature Macro]
 ```
 
