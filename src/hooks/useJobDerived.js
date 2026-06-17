@@ -50,6 +50,17 @@ export default function useJobDerived({
      *    1000mm extrusion = position 980mm)
      * ────────────────────────────────────────────────────────────── */
     const resolvePosition = (pattern, i) => {
+      /* WHY special-case fixed fittings: Central Connector (16mm) and
+       * Anchor Fast (18mm) are always positioned at a fixed distance
+       * from the chosen end of the beam. They ignore fromEnd/spacing/count
+       * because they represent physical fasteners, not patterns. */
+      const meta = HOLE_TYPES.find(h => h.id === pattern.holeType);
+      if (meta?.isFixedFitting) {
+        const offset = meta.fixedOffsetMm;
+        return pattern.referenceEnd === 'end'
+          ? materialLength - offset
+          : offset;
+      }
       const base = pattern.referenceEnd === 'end'
         ? materialLength - pattern.fromEnd
         : pattern.fromEnd;
@@ -69,15 +80,6 @@ export default function useJobDerived({
          * contains the Central Connector (16mm) and Anchor Fast (18mm)
          * holes at their fixed positions. These come before the regular
          * patterns so the order in the G-code reads naturally. */
-        const fittings = [];
-        const ef = slot.endFittings;
-        if (ef) {
-          /* MACHINE_CONFIG positions for the fixed fittings */
-          if (ef.start.centralConnector) fittings.push({ step: fittings.length + 1, holeType: 'central-connector', distance_from_end_mm: 16 });
-          if (ef.start.anchorFast) fittings.push({ step: fittings.length + 1, holeType: 'anchor-fast', distance_from_end_mm: 18 });
-          if (ef.end.centralConnector) fittings.push({ step: fittings.length + 1, holeType: 'central-connector', distance_from_end_mm: materialLength - 16 });
-          if (ef.end.anchorFast) fittings.push({ step: fittings.length + 1, holeType: 'anchor-fast', distance_from_end_mm: materialLength - 18 });
-        }
         const baseOp = {
           profile: profile.name,
           face: `F${faceNumber}`,
@@ -86,14 +88,15 @@ export default function useJobDerived({
           slotXOffset: slotMap.get(slot.slotId)?.xOffset ?? 0,
           slot_width_mm: slotMap.get(slot.slotId)?.width || 0,
         };
-        const fittingOp = fittings.length > 0 ? [{ ...baseOp, operationIndex: -1, holes: fittings }] : [];
-        return [
-          ...fittingOp,
-          ...slot.patterns.map((pattern, patternIndex) => ({
+        return slot.patterns.map((pattern, patternIndex) => {
+          const meta = HOLE_TYPES.find(h => h.id === pattern.holeType);
+          const isFixed = !!meta?.isFixedFitting;
+          return {
             ...baseOp,
             operationIndex: patternIndex,
             holes: (() => {
-              const base = Array.from({ length: pattern.count }, (_, i) => ({
+              const count = isFixed ? 1 : pattern.count;
+              const base = Array.from({ length: count }, (_, i) => ({
                 step: i + 1,
                 holeType: pattern.holeType,
                 distance_from_end_mm: resolvePosition(pattern, i),
@@ -107,21 +110,15 @@ export default function useJobDerived({
               }
               return base;
             })(),
-          })),
-        ];
+          };
+        });
       }),
-      holes: slotPatternsSorted.flatMap(slot => {
-        /* Include endFittings holes in the flat list too (for export/visualisation) */
-        const efHoles = [];
-        const ef = slot.endFittings;
-        if (ef) {
-          if (ef.start.centralConnector) efHoles.push({ step: efHoles.length + 1, holeType: 'central-connector', distance_from_end_mm: 16, slot: slot.slotId, patternId: 'fitting-start-cc' });
-          if (ef.start.anchorFast) efHoles.push({ step: efHoles.length + 1, holeType: 'anchor-fast', distance_from_end_mm: 18, slot: slot.slotId, patternId: 'fitting-start-af' });
-          if (ef.end.centralConnector) efHoles.push({ step: efHoles.length + 1, holeType: 'central-connector', distance_from_end_mm: materialLength - 16, slot: slot.slotId, patternId: 'fitting-end-cc' });
-          if (ef.end.anchorFast) efHoles.push({ step: efHoles.length + 1, holeType: 'anchor-fast', distance_from_end_mm: materialLength - 18, slot: slot.slotId, patternId: 'fitting-end-af' });
-        }
-        const patternHoles = slot.patterns.flatMap(pattern => {
-          const base = Array.from({ length: pattern.count }, (_, i) => ({
+      holes: slotPatternsSorted.flatMap(slot =>
+        slot.patterns.flatMap(pattern => {
+          const meta = HOLE_TYPES.find(h => h.id === pattern.holeType);
+          const isFixed = !!meta?.isFixedFitting;
+          const count = isFixed ? 1 : pattern.count;
+          const base = Array.from({ length: count }, (_, i) => ({
             step: i + 1,
             holeType: pattern.holeType,
             distance_from_end_mm: resolvePosition(pattern, i),
@@ -134,9 +131,8 @@ export default function useJobDerived({
               : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
           }
           return base;
-        });
-        return [...efHoles, ...patternHoles];
-      }),
+        })
+      ),
     };
   }, [materialLength, orderNumber, profile, faceNumber, slotPatternsSorted, slotMap, repetitions]);
 

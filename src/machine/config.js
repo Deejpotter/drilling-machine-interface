@@ -293,6 +293,11 @@ export const HOLE_TYPES = [
   { id: 'double-hole', label: 'HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
   { id: 'slotted-hole', label: 'HARD-40S-4040-END-FAST-A (7mm slot)', description: 'Elongated slot', minSlot: 6, maxSlots: 99, slotLength: 50 },
   { id: 'm8-counterbore', label: 'BOLT-M8-CAP (M8 counterbore)', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
+  /* Central Connector (16mm) and Anchor Fast (18mm) are fixed-position
+   * fittings — they ignore From/Count/Spacing and always go at one end
+   * of the beam based on the referenceEnd toggle (start/end). */
+  { id: 'central-connector', label: 'HARD-40S-CENTRAL-CONNECTOR (central connector)', description: 'Fixed at 16mm from chosen end', minSlot: 6, maxSlots: 99, isFixedFitting: true, fixedOffsetMm: 16 },
+  { id: 'anchor-fast', label: 'HARD-40S-ANCHOR-FAST (anchor fast)', description: 'Fixed at 18mm from chosen end', minSlot: 6, maxSlots: 99, isFixedFitting: true, fixedOffsetMm: 18 },
 ];
 
 /* ────────────────────────────────────────────

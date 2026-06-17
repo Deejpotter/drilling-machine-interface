@@ -294,22 +294,6 @@ export default function useJobState() {
     setSlotPatterns(prev => updatePatternInSlot(prev, slotId, patternId, patch));
   };
 
-  /* Toggle a fixed end fitting on/off. Central Connector and Anchor Fast
-   * are positioned at fixed distances from the end (16mm and 18mm) and
-   * can only be added once per end of the beam. */
-  const updateEndFitting = (slotId, end, fitting, value) => {
-    setSlotPatterns(prev => prev.map(slot => {
-      if (slot.slotId !== slotId) return slot;
-      return {
-        ...slot,
-        endFittings: {
-          ...slot.endFittings,
-          [end]: { ...slot.endFittings[end], [fitting]: value },
-        },
-      };
-    }));
-  };
-
   const addSlotPattern = (slotId) => {
     setSlotPatterns(prev => {
       if (prev.some(row => row.slotId === slotId)) return prev;
@@ -390,7 +374,6 @@ export default function useJobState() {
     saveMessage, setSaveMessage,
     handleProfileChange, handleFaceChange,
     updatePattern,
-    updateEndFitting,
     addSlotPattern, removeSlotPattern,
     addPatternToSlotHandler, removePatternFromSlotHandler,
     copyPreviousPattern,

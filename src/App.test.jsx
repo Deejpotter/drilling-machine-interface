@@ -48,7 +48,7 @@ describe('Drilling Machine App', () => {
     expect(document.getElementById('length-input')).toBeInTheDocument();
   });
 
-  it('has all 4 selectable hole types in simple mode', () => {
+  it('has all 6 hole types available in simple mode', () => {
     const { container } = render(<App />);
     const row = getFirstPatternRow(container);
     const opts = Array.from(row.holeTypeSelect.options).map(o => o.textContent);
@@ -56,10 +56,8 @@ describe('Drilling Machine App', () => {
     expect(opts).toContain('HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)');
     expect(opts).toContain('HARD-40S-4040-END-FAST-A (7mm slot)');
     expect(opts).toContain('BOLT-M8-CAP (M8 counterbore)');
-    /* Central Connector and Anchor Fast are fixed end fittings, not
-     * selectable as patterns — they're toggled per slot separately. */
-    expect(opts).not.toContain('HARD-40S-CENTRAL-CONNECTOR (central connector)');
-    expect(opts).not.toContain('HARD-40S-ANCHOR-FAST (anchor fast)');
+    expect(opts).toContain('HARD-40S-CENTRAL-CONNECTOR (central connector)');
+    expect(opts).toContain('HARD-40S-ANCHOR-FAST (anchor fast)');
   });
 
   it('shows order number input', () => {

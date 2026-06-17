@@ -6,7 +6,7 @@ export default function SlotPatternForm({
   slotPatternsSorted, slotMap, remainingSlots, slotToAdd, setSlotToAdd,
   filteredHoleTypes, availableHolesForFace, slotFitChecks,
   setOrderNumber, setMaterialLength, setRepetitions,
-  updatePattern, updateEndFitting, addSlotPattern, removeSlotPattern,
+  updatePattern, addSlotPattern, removeSlotPattern,
   addPatternToSlotHandler, removePatternFromSlotHandler, copyPreviousPattern,
   handleProfileChange, handleFaceChange,
   filteredProfiles, selectedFaceIndex,
@@ -141,6 +141,8 @@ export default function SlotPatternForm({
                 <div className="slot-patterns-list">
                   {slot.patterns.map((pattern, patternIndex) => {
                     const prevPattern = patternIndex > 0 ? slot.patterns[patternIndex - 1] : null;
+                    const patternMeta = filteredHoleTypes.find(h => h.id === pattern.holeType);
+                    const isFixedFitting = !!patternMeta?.isFixedFitting;
                     return (
                       <div key={pattern.id} className="slot-pattern-subrow">
                         <div className="pattern-index">#{patternIndex + 1}</div>
@@ -157,57 +159,80 @@ export default function SlotPatternForm({
                               ))}
                             </select>
                           </div>
-                          <div className="form-row">
-                            {/* WHY clickable label: a toggle that doubles as
-                             * the field label keeps the form compact. The label
-                             * text communicates which end is active — no need
-                             * for a separate state indicator. Operators click to
-                             * flip between measuring from the 0mm end or the
-                             * far end of the extrusion. */}
-                            <label
-                              className="reference-end-toggle"
-                              onClick={() => updatePattern(slot.slotId, pattern.id, {
-                                referenceEnd: pattern.referenceEnd === 'end' ? 'start' : 'end',
-                              })}
-                              title="Click to measure from the other end"
-                            >
-                              {pattern.referenceEnd === 'end' ? 'FROM END (mm)' : 'FROM START (mm)'}
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={pattern.fromEnd}
-                              onChange={e => updatePattern(slot.slotId, pattern.id, { fromEnd: Number(e.target.value) })}
-                              onBlur={e => updatePattern(slot.slotId, pattern.id, { fromEnd: Math.max(0, Number(pattern.fromEnd) || 0) })}
-                            />
-                          </div>
-                          <div className="form-row">
-                            <label>Count</label>
-                            <input
-                              type="number"
-                              min={1}
-                              max={50}
-                              value={pattern.count}
-                              onChange={e => updatePattern(slot.slotId, pattern.id, { count: Number(e.target.value) })}
-                              onBlur={e => updatePattern(slot.slotId, pattern.id, { count: Math.max(1, Number(pattern.count) || 1) })}
-                            />
-                          </div>
-                          {pattern.count > 1 && (
+                          {/* WHY conditional: Central Connector (16mm) and Anchor
+                           * Fast (18mm) are fixed-position fittings — fromEnd,
+                           * count, and spacing don't apply. We still expose the
+                           * referenceEnd toggle so the operator can pick which end
+                           * of the beam the fitting goes on. */}
+                          {isFixedFitting ? (
                             <div className="form-row">
-                              <label>Spacing (mm)</label>
-                              <input
-                                type="number"
-                                /* Milled slots are 20mm long; Patch requires
-                                 * at least 25mm between consecutive slots. */
-                                min={pattern.holeType === 'slotted-hole' ? 25 : 1}
-                                value={pattern.spacing}
-                                onChange={e => updatePattern(slot.slotId, pattern.id, { spacing: Number(e.target.value) })}
-                                onBlur={e => {
-                                  const min = pattern.holeType === 'slotted-hole' ? 25 : 1;
-                                  updatePattern(slot.slotId, pattern.id, { spacing: Math.max(min, Number(pattern.spacing) || min) });
-                                }}
-                              />
+                              <label
+                                className="reference-end-toggle"
+                                onClick={() => updatePattern(slot.slotId, pattern.id, {
+                                  referenceEnd: pattern.referenceEnd === 'end' ? 'start' : 'end',
+                                })}
+                                title="Click to swap which end of the beam the fitting goes on"
+                              >
+                                {pattern.referenceEnd === 'end'
+                                  ? `FIXED AT ${patternMeta.fixedOffsetMm}mm FROM END`
+                                  : `FIXED AT ${patternMeta.fixedOffsetMm}mm FROM START`}
+                              </label>
                             </div>
+                          ) : (
+                            <>
+                              <div className="form-row">
+                                {/* WHY clickable label: a toggle that doubles as
+                                 * the field label keeps the form compact. The label
+                                 * text communicates which end is active — no need
+                                 * for a separate state indicator. Operators click to
+                                 * flip between measuring from the 0mm end or the
+                                 * far end of the extrusion. */}
+                                <label
+                                  className="reference-end-toggle"
+                                  onClick={() => updatePattern(slot.slotId, pattern.id, {
+                                    referenceEnd: pattern.referenceEnd === 'end' ? 'start' : 'end',
+                                  })}
+                                  title="Click to measure from the other end"
+                                >
+                                  {pattern.referenceEnd === 'end' ? 'FROM END (mm)' : 'FROM START (mm)'}
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={pattern.fromEnd}
+                                  onChange={e => updatePattern(slot.slotId, pattern.id, { fromEnd: Number(e.target.value) })}
+                                  onBlur={e => updatePattern(slot.slotId, pattern.id, { fromEnd: Math.max(0, Number(pattern.fromEnd) || 0) })}
+                                />
+                              </div>
+                              <div className="form-row">
+                                <label>Count</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={50}
+                                  value={pattern.count}
+                                  onChange={e => updatePattern(slot.slotId, pattern.id, { count: Number(e.target.value) })}
+                                  onBlur={e => updatePattern(slot.slotId, pattern.id, { count: Math.max(1, Number(pattern.count) || 1) })}
+                                />
+                              </div>
+                              {pattern.count > 1 && (
+                                <div className="form-row">
+                                  <label>Spacing (mm)</label>
+                                  <input
+                                    type="number"
+                                    /* Milled slots are 20mm long; Patch requires
+                                     * at least 25mm between consecutive slots. */
+                                    min={pattern.holeType === 'slotted-hole' ? 25 : 1}
+                                    value={pattern.spacing}
+                                    onChange={e => updatePattern(slot.slotId, pattern.id, { spacing: Number(e.target.value) })}
+                                    onBlur={e => {
+                                      const min = pattern.holeType === 'slotted-hole' ? 25 : 1;
+                                      updatePattern(slot.slotId, pattern.id, { spacing: Math.max(min, Number(pattern.spacing) || min) });
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                         <div className="pattern-actions">
@@ -233,50 +258,6 @@ export default function SlotPatternForm({
                       </div>
                     );
                   })}
-                </div>
-                {/* Fixed end fittings (Central Connector 16mm, Anchor Fast 18mm) */}
-                <div className="end-fittings">
-                  <label className="end-fittings-label">End fittings (fixed position)</label>
-                  <div className="end-fittings-grid">
-                    <div className="end-fittings-col">
-                      <div className="end-fittings-col-title">Start (0mm end)</div>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={slot.endFittings?.start?.centralConnector ?? false}
-                          onChange={e => updateEndFitting(slot.slotId, 'start', 'centralConnector', e.target.checked)}
-                        />
-                        Central Connector @ 16mm
-                      </label>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={slot.endFittings?.start?.anchorFast ?? false}
-                          onChange={e => updateEndFitting(slot.slotId, 'start', 'anchorFast', e.target.checked)}
-                        />
-                        Anchor Fast @ 18mm
-                      </label>
-                    </div>
-                    <div className="end-fittings-col">
-                      <div className="end-fittings-col-title">End ({materialLength}mm end)</div>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={slot.endFittings?.end?.centralConnector ?? false}
-                          onChange={e => updateEndFitting(slot.slotId, 'end', 'centralConnector', e.target.checked)}
-                        />
-                        Central Connector @ {materialLength - 16}mm
-                      </label>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={slot.endFittings?.end?.anchorFast ?? false}
-                          onChange={e => updateEndFitting(slot.slotId, 'end', 'anchorFast', e.target.checked)}
-                        />
-                        Anchor Fast @ {materialLength - 18}mm
-                      </label>
-                    </div>
-                  </div>
                 </div>
                 {slotClearance && slotClearance.clearanceEnd < 0 && (
                   <div className="slot-row-warning">

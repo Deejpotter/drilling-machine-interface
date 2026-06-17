@@ -66,7 +66,6 @@ export default function App() {
           setMaterialLength={state.setMaterialLength}
           setRepetitions={state.setRepetitions}
           updatePattern={state.updatePattern}
-          updateEndFitting={state.updateEndFitting}
           addSlotPattern={state.addSlotPattern}
           removeSlotPattern={state.removeSlotPattern}
           addPatternToSlotHandler={state.addPatternToSlotHandler}
