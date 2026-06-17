@@ -121,20 +121,20 @@ describe('G-code Generator', () => {
     expect(gcode).toContain('M98 P4210');
   });
 
-  it('finishes with M99 subroutine return', () => {
+  it('finishes with M30 program end', () => {
     const gcode = generateGcode(mockJob);
     expect(gcode).toContain('G54 G0 Z60                    ; Safe Z in machine coords');
     expect(gcode).toContain('M5                            ; Spindle off');
     expect(gcode).toContain('G54 G0 X0 Y1050');
     expect(gcode).toContain('; Return past end of beam');
-    expect(gcode).toContain('M99                           ; Subroutine return');
-    expect(gcode).not.toContain('M30');
+    expect(gcode).toContain('M30                           ; Program end');
+    expect(gcode).not.toContain('M99');
   });
 
   it('handles empty operations gracefully', () => {
     const gcode = generateGcode({ name: 'empty', materialLength: 500, operations: [] });
     expect(gcode).toContain('empty');
-    expect(gcode).toContain('M99');
+    expect(gcode).toContain('M30');
     expect(gcode).not.toContain('M98 P');
   });
 
@@ -158,11 +158,51 @@ describe('G-code Generator', () => {
       }],
     };
     const gcode = generateGcode(job);
+    // single-hole and double-hole both call P4110 (double is just two single holes)
     expect(gcode).toContain('M98 P4110'); // single-hole slot1
-    expect(gcode).toContain('M98 P4111'); // double-hole slot1
+    expect(gcode).not.toContain('M98 P4111'); // double-hole uses P4110, not P4111
     expect(gcode).toContain('M98 P4112'); // slotted-hole slot1
     expect(gcode).toContain('M98 P4108'); // m8-counterbore slot1
     expect(gcode).toContain('M98 P4150'); // central-connector slot1
     expect(gcode).toContain('M98 P4151'); // anchor-fast slot1
+    // double-hole should produce two P4110 calls (one for each hole)
+    const p4110Matches = gcode.match(/M98 P4110/g) || [];
+    expect(p4110Matches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('emits ASCII-only output (no box-drawing characters)', () => {
+    const gcode = generateGcode(mockJob);
+    /* WHY: Patch reported encoding errors from box-drawing chars (U+2500).
+     * The .nc file must be plain ASCII so it transfers cleanly between
+     * systems and text editors. */
+    expect(gcode).not.toMatch(/[\u2500-\u257F]/);
+  });
+
+  it('emits end fittings at fixed positions (16mm Central, 18mm Anchor)', () => {
+    const job = {
+      name: 'fittings-test',
+      materialLength: 1000,
+      operations: [
+        {
+          profile: '40x40',
+          face: 'Top',
+          slot: 1,
+          slot_width_mm: 8,
+          holes: [
+            { step: 1, holeType: 'central-connector', distance_from_end_mm: 16 },
+            { step: 2, holeType: 'anchor-fast', distance_from_end_mm: 18 },
+            { step: 3, holeType: 'central-connector', distance_from_end_mm: 984 }, // 1000 - 16
+            { step: 4, holeType: 'anchor-fast', distance_from_end_mm: 982 },    // 1000 - 18
+          ],
+        },
+      ],
+    };
+    const gcode = generateGcode(job);
+    expect(gcode).toContain('Y16.0');
+    expect(gcode).toContain('Y18.0');
+    expect(gcode).toContain('Y984.0');
+    expect(gcode).toContain('Y982.0');
+    expect(gcode).toContain('M98 P4150'); // Central Connector
+    expect(gcode).toContain('M98 P4151'); // Anchor Fast
   });
 });

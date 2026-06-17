@@ -66,6 +66,7 @@ export default function App() {
           setMaterialLength={state.setMaterialLength}
           setRepetitions={state.setRepetitions}
           updatePattern={state.updatePattern}
+          updateEndFitting={state.updateEndFitting}
           addSlotPattern={state.addSlotPattern}
           removeSlotPattern={state.removeSlotPattern}
           addPatternToSlotHandler={state.addPatternToSlotHandler}
@@ -90,6 +91,11 @@ export default function App() {
                 ? derived.firstOverrun.clearanceEnd
                 : (derived.firstOverrun?.clearanceStart ?? 0)
             ).toFixed(0)}mm — reduce holes, spacing, or increase length
+          </div>
+        )}
+        {!derived.slotSpacingValid && (
+          <div className="validity-error">
+            Slot spacing is {derived.firstSpacingViolation?.spacing}mm — milled slots must be at least {derived.firstSpacingViolation?.minRequired}mm apart
           </div>
         )}
         {derived.fits && derived.minClearance > 0 && derived.minClearance < 20 && (

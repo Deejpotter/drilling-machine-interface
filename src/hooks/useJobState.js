@@ -14,6 +14,13 @@ export function createDefaultPattern(slotId) {
    * other end can toggle it — but the default should feel familiar. */
   return {
     slotId,
+    /* Fixed end fittings: Central Connector (16mm) and Anchor Fast (18mm)
+     * are positioned at a specific distance from the end and can only be
+     * added once per end. They're not repeatable patterns. */
+    endFittings: {
+      start: { centralConnector: false, anchorFast: false },
+      end: { centralConnector: false, anchorFast: false },
+    },
     patterns: [
       {
         id: generatePatternId(),
@@ -110,6 +117,12 @@ function getInitialState() {
             if (row.patterns && Array.isArray(row.patterns)) {
               return {
                 slotId: row.slotId,
+                /* Preserve endFittings if present, otherwise default to
+                 * no fixed fittings (all toggles off). */
+                endFittings: row.endFittings ?? {
+                  start: { centralConnector: false, anchorFast: false },
+                  end: { centralConnector: false, anchorFast: false },
+                },
                 patterns: row.patterns.map(p => ({
                   id: p.id || generatePatternId(),
                   holeType: typeof p.holeType === 'string' ? p.holeType : 'single-hole',
@@ -281,6 +294,22 @@ export default function useJobState() {
     setSlotPatterns(prev => updatePatternInSlot(prev, slotId, patternId, patch));
   };
 
+  /* Toggle a fixed end fitting on/off. Central Connector and Anchor Fast
+   * are positioned at fixed distances from the end (16mm and 18mm) and
+   * can only be added once per end of the beam. */
+  const updateEndFitting = (slotId, end, fitting, value) => {
+    setSlotPatterns(prev => prev.map(slot => {
+      if (slot.slotId !== slotId) return slot;
+      return {
+        ...slot,
+        endFittings: {
+          ...slot.endFittings,
+          [end]: { ...slot.endFittings[end], [fitting]: value },
+        },
+      };
+    }));
+  };
+
   const addSlotPattern = (slotId) => {
     setSlotPatterns(prev => {
       if (prev.some(row => row.slotId === slotId)) return prev;
@@ -361,6 +390,7 @@ export default function useJobState() {
     saveMessage, setSaveMessage,
     handleProfileChange, handleFaceChange,
     updatePattern,
+    updateEndFitting,
     addSlotPattern, removeSlotPattern,
     addPatternToSlotHandler, removePatternFromSlotHandler,
     copyPreviousPattern,

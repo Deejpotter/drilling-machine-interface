@@ -1,22 +1,21 @@
-/* ────────────────────────────────────────────
+/* -----------------------------------------------------------------
    G-code generator — Patch's actual controller format
 
-   This produces .nc files that are called as subroutines by the
-   machine's main controller. They are NOT standalone programs —
-   that's why we use M99 (subroutine return) instead of M30 (program end).
+   This produces .nc files that are loaded onto the machine and run
+   as standalone programs, ending with M30 (program end + rewind).
 
    The G-code structure follows Patch's spec from 2026-06-10:
    1. Header: set up machine state (coolant, metric, spindle, work offsets)
-   2. Per-hole: move to position → set G56 offset → call feature macro
-   3. Footer: safe Z, spindle off, return past beam end, M99
+   2. Per-hole: move to position -> set G56 offset -> call feature macro
+   3. Footer: safe Z, spindle off, return past beam end, M30
 
    Key conventions:
    - G54 = machine coordinates (safe Z, home position)
    - G55 = work offset for the current face (set via G10 L20 P2)
    - G56 = feature-level offset (set per hole via G10 L20 P3)
    - M98 P#### = call a pre-loaded macro on the machine controller
-   - Slot 1 uses X0, slot 2 uses X-60 (60mm slot-to-slot on 40×80)
-   ──────────────────────────────────────────── */
+   - Slot 1 uses X0, slot 2 uses X40 (40mm slot-to-slot on 40x80)
+   ----------------------------------------------------------------- */
 
 import { MACRO_CALLS, MACHINE_CONFIG, HOLE_TYPE_SKUS } from './config.js';
 
@@ -37,16 +36,8 @@ function generateHeader(job, lines) {
   const nc = (s) => lines.push(s);
   const date = new Date().toLocaleString();
 
-  // Build SKU description from the first operation's hole type.
-  // This puts the product code (e.g., HARD-40S-4080-END-FAST-A)
-  // at the top of the file so operators can quickly verify they're
-  // running the right program.
-  const firstOp = job.operations[0];
-  const skuInfo = firstOp ? HOLE_TYPE_SKUS[firstOp.holes[0]?.holeType] : null;
-  const skuName = skuInfo ? `${skuInfo.sku} (${skuInfo.desc})` : job.name;
-
-  nc(`; ──────────────────────────────────────`);
-  nc(`;  ${skuName}`);
+  nc(`; --------------------------------------`);
+  nc(``);
   nc(`;  Order: ${job.name}`);
   nc(`;  Generated: ${date}`);
   nc(`;  Material length: ${job.materialLength}mm`);
@@ -54,10 +45,10 @@ function generateHeader(job, lines) {
     nc(`;  Batch size: ${job.repetitions} repetitions`);
   }
   nc(`;  Total operations: ${job.operations.length}`);
-  nc(`; ──────────────────────────────────────`);
+  nc(`; --------------------------------------`);
   nc(``);
 
-  // ─── Setup ───
+  // --- Setup ---
   nc(g('M9', 'Coolant off'));
   nc(g('G17', 'Set XY plane'));
   nc(g('G21', 'Set metric'));
@@ -113,23 +104,23 @@ function drillHole(macro, lines) {
 /**
  * Generate the G-code footer.
  *
- * We use M99 (subroutine return) instead of M30 (program end)
- * because these .nc files are called from the main controller.
- * The Y return goes past the beam end by 50mm to ensure the
- * drill bit clears the workpiece before the next operation.
+ * We use M30 (program end + rewind) since these .nc files are loaded
+ * onto the machine and run as standalone programs. The Y return goes
+ * past the beam end by 50mm to ensure the drill bit clears the
+ * workpiece before the next operation.
  */
 function generateFooter(job, lines) {
   const nc = (s) => lines.push(s);
-  nc(`; ─── End ───`);
+  nc(`; --- End ---`);
   nc(``);
   nc(g(`G54 G0 Z${MACHINE_CONFIG.footerSafeZ}`, 'Safe Z in machine coords'));
   nc(g('M5', 'Spindle off'));
   nc(g(`G54 G0 X0 Y${job.materialLength + 50}`, 'Return past end of beam'));
-  nc(g('M99', 'Subroutine return'));
+  nc(g('M30', 'Program end'));
   nc(``);
-  nc(`; ──────────────────────────────────────`);
+  nc(`; --------------------------------------`);
   nc(`;  End of ${job.name}`);
-  nc(`; ──────────────────────────────────────`);
+  nc(`; --------------------------------------`);
 }
 
 /**
@@ -144,15 +135,15 @@ export function generateGcode(job) {
   // ──────────────────────────────────────
   generateHeader(job, lines);
 
-  // ──────────────────────────────────────
+  // ----------------------------------------------------------------
   // 2. Process each operation (one face/slot)
-  // ──────────────────────────────────────
-  lines.push(`; ─── Operations ───`);
+  // ----------------------------------------------------------------
+  lines.push(`; --- Operations ---`);
   lines.push(``);
   for (const op of job.operations) {
     const { profile, face, holes } = op;
     const slotTag = op.slot ? ` · S${op.slot}` : '';
-    lines.push(`; ─── ${profile} → ${face}${slotTag} · ${holes.length} holes ───`);
+    lines.push(`; --- ${profile} -> ${face}${slotTag} · ${holes.length} holes ---`);
     lines.push(`;  Slot width: ${op.slot_width_mm}mm`);
     lines.push(``);
 
@@ -161,11 +152,16 @@ export function generateGcode(job) {
     // profiles can have different X coordinates for their slots.
     const slotXOffset = op.slotXOffset ?? 0;
 
-    // ──────────────────────────────────────
+    // ----------------------------------------------------------------
     // 3. For each hole: move, set offset, drill
-    // ──────────────────────────────────────
+    // ----------------------------------------------------------------
     for (const hole of holes) {
-      const macroSet = MACRO_CALLS[hole.holeType];
+      /* Double-hole is handled by Patch as two separate single-hole
+       * operations spaced 40mm apart. The data model already expands
+       * the pattern into two distinct Y positions, so we just call
+       * the single-hole macro (P4110/P4210) at each position. */
+      const macroType = hole.holeType === 'double-hole' ? 'single-hole' : hole.holeType;
+      const macroSet = MACRO_CALLS[macroType];
       if (!macroSet) continue;
       // Pick slot1 or slot2 P-number based on which slot we're drilling
       const macro = op.slot === 2 ? macroSet.slot2 : macroSet.slot1;
@@ -183,9 +179,9 @@ export function generateGcode(job) {
     }
   }
 
-  // ──────────────────────────────────────
-  // 4. End — Custom G-code footer
-  // ──────────────────────────────────────
+  // ----------------------------------------------------------------
+  // 4. End - Custom G-code footer
+  // ----------------------------------------------------------------
   generateFooter(job, lines);
 
   return lines.join('\n');

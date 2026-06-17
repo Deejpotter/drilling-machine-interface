@@ -6,7 +6,7 @@ export default function SlotPatternForm({
   slotPatternsSorted, slotMap, remainingSlots, slotToAdd, setSlotToAdd,
   filteredHoleTypes, availableHolesForFace, slotFitChecks,
   setOrderNumber, setMaterialLength, setRepetitions,
-  updatePattern, addSlotPattern, removeSlotPattern,
+  updatePattern, updateEndFitting, addSlotPattern, removeSlotPattern,
   addPatternToSlotHandler, removePatternFromSlotHandler, copyPreviousPattern,
   handleProfileChange, handleFaceChange,
   filteredProfiles, selectedFaceIndex,
@@ -197,10 +197,15 @@ export default function SlotPatternForm({
                               <label>Spacing (mm)</label>
                               <input
                                 type="number"
-                                min={1}
+                                /* Milled slots are 20mm long; Patch requires
+                                 * at least 25mm between consecutive slots. */
+                                min={pattern.holeType === 'slotted-hole' ? 25 : 1}
                                 value={pattern.spacing}
                                 onChange={e => updatePattern(slot.slotId, pattern.id, { spacing: Number(e.target.value) })}
-                                onBlur={e => updatePattern(slot.slotId, pattern.id, { spacing: Math.max(1, Number(pattern.spacing) || 1) })}
+                                onBlur={e => {
+                                  const min = pattern.holeType === 'slotted-hole' ? 25 : 1;
+                                  updatePattern(slot.slotId, pattern.id, { spacing: Math.max(min, Number(pattern.spacing) || min) });
+                                }}
                               />
                             </div>
                           )}
@@ -228,6 +233,50 @@ export default function SlotPatternForm({
                       </div>
                     );
                   })}
+                </div>
+                {/* Fixed end fittings (Central Connector 16mm, Anchor Fast 18mm) */}
+                <div className="end-fittings">
+                  <label className="end-fittings-label">End fittings (fixed position)</label>
+                  <div className="end-fittings-grid">
+                    <div className="end-fittings-col">
+                      <div className="end-fittings-col-title">Start (0mm end)</div>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={slot.endFittings?.start?.centralConnector ?? false}
+                          onChange={e => updateEndFitting(slot.slotId, 'start', 'centralConnector', e.target.checked)}
+                        />
+                        Central Connector @ 16mm
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={slot.endFittings?.start?.anchorFast ?? false}
+                          onChange={e => updateEndFitting(slot.slotId, 'start', 'anchorFast', e.target.checked)}
+                        />
+                        Anchor Fast @ 18mm
+                      </label>
+                    </div>
+                    <div className="end-fittings-col">
+                      <div className="end-fittings-col-title">End ({materialLength}mm end)</div>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={slot.endFittings?.end?.centralConnector ?? false}
+                          onChange={e => updateEndFitting(slot.slotId, 'end', 'centralConnector', e.target.checked)}
+                        />
+                        Central Connector @ {materialLength - 16}mm
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={slot.endFittings?.end?.anchorFast ?? false}
+                          onChange={e => updateEndFitting(slot.slotId, 'end', 'anchorFast', e.target.checked)}
+                        />
+                        Anchor Fast @ {materialLength - 18}mm
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 {slotClearance && slotClearance.clearanceEnd < 0 && (
                   <div className="slot-row-warning">

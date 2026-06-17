@@ -278,18 +278,21 @@ export const FEATURE_CONFIG = {
    - maxSlots: maximum number of slots a face can have to use this type
      (e.g., double-hole is limited to 2 slots because it spans both)
 
-   All holes are 7mm diameter — the differentiation is pattern type,
+   All holes are 7mm diameter - the differentiation is pattern type,
    not hole size. This is because the physical drilling bit is the
    same; the controller macro determines the pattern (single, double,
    slotted, counterbore).
-   ──────────────────────────────────────────── */
+
+   Central Connector and Anchor Fast are NOT in this list - they are
+   fixed-position end fittings (16mm and 18mm from end) and are
+   toggled separately per slot via the endFittings state, not added
+   as repeatable patterns.
+   ----------------------------------------------------------------- */
 export const HOLE_TYPES = [
   { id: 'single-hole', label: 'HARD-40S-4040-END-FAST-A (7mm hole)', description: 'One hole per position', minSlot: 6, maxSlots: 99 },
   { id: 'double-hole', label: 'HARD-40S-4080-END-FAST-A (2x 7mm hole - 40mm apart)', description: 'Two holes, 40mm apart, across both slots', minSlot: 6, maxSlots: 2 },
   { id: 'slotted-hole', label: 'HARD-40S-4040-END-FAST-A (7mm slot)', description: 'Elongated slot', minSlot: 6, maxSlots: 99, slotLength: 50 },
   { id: 'm8-counterbore', label: 'BOLT-M8-CAP (M8 counterbore)', description: 'Single counterbore hole', minSlot: 6, maxSlots: 99 },
-  { id: 'central-connector', label: 'HARD-40S-CENTRAL-CONNECTOR (central connector)', description: 'Connector feature', minSlot: 6, maxSlots: 99 },
-  { id: 'anchor-fast', label: 'HARD-40S-ANCHOR-FAST (anchor fast)', description: 'Anchor feature', minSlot: 6, maxSlots: 99 },
 ];
 
 /* ────────────────────────────────────────────

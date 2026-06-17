@@ -64,34 +64,63 @@ export default function useJobDerived({
       profile: profile.name,
       faceLabel: `F${faceNumber}`,
       patternCount: slotPatternsSorted.reduce((sum, slot) => sum + slot.patterns.length, 0),
-      operations: slotPatternsSorted.flatMap((slot, slotIndex) =>
-        slot.patterns.map((pattern, patternIndex) => ({
+      operations: slotPatternsSorted.flatMap((slot, slotIndex) => {
+        /* Fixed end fittings: emit a separate operation per slot that
+         * contains the Central Connector (16mm) and Anchor Fast (18mm)
+         * holes at their fixed positions. These come before the regular
+         * patterns so the order in the G-code reads naturally. */
+        const fittings = [];
+        const ef = slot.endFittings;
+        if (ef) {
+          /* MACHINE_CONFIG positions for the fixed fittings */
+          if (ef.start.centralConnector) fittings.push({ step: fittings.length + 1, holeType: 'central-connector', distance_from_end_mm: 16 });
+          if (ef.start.anchorFast) fittings.push({ step: fittings.length + 1, holeType: 'anchor-fast', distance_from_end_mm: 18 });
+          if (ef.end.centralConnector) fittings.push({ step: fittings.length + 1, holeType: 'central-connector', distance_from_end_mm: materialLength - 16 });
+          if (ef.end.anchorFast) fittings.push({ step: fittings.length + 1, holeType: 'anchor-fast', distance_from_end_mm: materialLength - 18 });
+        }
+        const baseOp = {
           profile: profile.name,
           face: `F${faceNumber}`,
           faceLabel: face.label,
           slot: slot.slotId,
           slotXOffset: slotMap.get(slot.slotId)?.xOffset ?? 0,
           slot_width_mm: slotMap.get(slot.slotId)?.width || 0,
-          operationIndex: patternIndex,
-          holes: (() => {
-            const base = Array.from({ length: pattern.count }, (_, i) => ({
-              step: i + 1,
-              holeType: pattern.holeType,
-              distance_from_end_mm: resolvePosition(pattern, i),
-            }));
-            /* Double-hole: emit two holes per pattern position,
-             * spaced 40mm apart (matches HARD-40S-4080-END-FAST-A). */
-            if (pattern.holeType === 'double-hole') {
-              return base.flatMap(h => pattern.referenceEnd === 'end'
-                ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
-                : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
-            }
-            return base;
-          })(),
-        }))
-      ),
-      holes: slotPatternsSorted.flatMap(slot =>
-        slot.patterns.flatMap(pattern => {
+        };
+        const fittingOp = fittings.length > 0 ? [{ ...baseOp, operationIndex: -1, holes: fittings }] : [];
+        return [
+          ...fittingOp,
+          ...slot.patterns.map((pattern, patternIndex) => ({
+            ...baseOp,
+            operationIndex: patternIndex,
+            holes: (() => {
+              const base = Array.from({ length: pattern.count }, (_, i) => ({
+                step: i + 1,
+                holeType: pattern.holeType,
+                distance_from_end_mm: resolvePosition(pattern, i),
+              }));
+              /* Double-hole: emit two holes per pattern position,
+               * spaced 40mm apart (matches HARD-40S-4080-END-FAST-A). */
+              if (pattern.holeType === 'double-hole') {
+                return base.flatMap(h => pattern.referenceEnd === 'end'
+                  ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
+                  : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
+              }
+              return base;
+            })(),
+          })),
+        ];
+      }),
+      holes: slotPatternsSorted.flatMap(slot => {
+        /* Include endFittings holes in the flat list too (for export/visualisation) */
+        const efHoles = [];
+        const ef = slot.endFittings;
+        if (ef) {
+          if (ef.start.centralConnector) efHoles.push({ step: efHoles.length + 1, holeType: 'central-connector', distance_from_end_mm: 16, slot: slot.slotId, patternId: 'fitting-start-cc' });
+          if (ef.start.anchorFast) efHoles.push({ step: efHoles.length + 1, holeType: 'anchor-fast', distance_from_end_mm: 18, slot: slot.slotId, patternId: 'fitting-start-af' });
+          if (ef.end.centralConnector) efHoles.push({ step: efHoles.length + 1, holeType: 'central-connector', distance_from_end_mm: materialLength - 16, slot: slot.slotId, patternId: 'fitting-end-cc' });
+          if (ef.end.anchorFast) efHoles.push({ step: efHoles.length + 1, holeType: 'anchor-fast', distance_from_end_mm: materialLength - 18, slot: slot.slotId, patternId: 'fitting-end-af' });
+        }
+        const patternHoles = slot.patterns.flatMap(pattern => {
           const base = Array.from({ length: pattern.count }, (_, i) => ({
             step: i + 1,
             holeType: pattern.holeType,
@@ -105,8 +134,9 @@ export default function useJobDerived({
               : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
           }
           return base;
-        })
-      ),
+        });
+        return [...efHoles, ...patternHoles];
+      }),
     };
   }, [materialLength, orderNumber, profile, faceNumber, slotPatternsSorted, slotMap, repetitions]);
 
@@ -180,6 +210,7 @@ export default function useJobDerived({
         rowColor,
         patterns: slot.patterns,
         isDoubleHole: hasDoubleHole,
+        endFittings: slot.endFittings,
       };
     });
   }, [slotPatternsSorted, slotMap, materialLength]);
@@ -202,7 +233,20 @@ export default function useJobDerived({
     return slotPatternsSorted.map(slot => {
       let maxPos = 0;
       let minPos = materialLength;
+      const spacingViolations = [];
       for (const pattern of slot.patterns) {
+        /* Milled slots are 20mm long. Patch requires at least 25mm
+         * between consecutive slots to avoid cutting through the
+         * extrusion (5mm material between adjacent 20mm cuts). */
+        if (pattern.holeType === 'slotted-hole'
+            && pattern.count > 1
+            && pattern.spacing < 25) {
+          spacingViolations.push({
+            patternId: pattern.id,
+            spacing: pattern.spacing,
+            minRequired: 25,
+          });
+        }
         for (let i = 0; i < pattern.count; i++) {
           /* Resolve absolute position — same logic as job useMemo.
            * We expand double holes inline rather than calling the job's
@@ -230,6 +274,7 @@ export default function useJobDerived({
         /* clearanceStart: material before the first hole minus 20mm.
          * Positive = fits, negative = too close to the 0mm end. */
         clearanceStart: minPos - 20,
+        spacingViolations,
       };
     });
   }, [slotPatternsSorted, materialLength]);
@@ -241,6 +286,14 @@ export default function useJobDerived({
    * so the UI can warn about either problem. */
   const fits = slotFitChecks.every(check => check.clearanceEnd >= 0 && check.clearanceStart >= 0);
   const firstOverrun = slotFitChecks.find(check => check.clearanceEnd < 0 || check.clearanceStart < 0);
+  /* WHY separate flag: slot spacing has its own rule (>= 25mm) that's
+   * distinct from fitting within the material length. A pattern can fit
+   * length-wise but still be invalid because consecutive slots are too
+   * close together. */
+  const slotSpacingValid = slotFitChecks.every(check => check.spacingViolations.length === 0);
+  const firstSpacingViolation = slotFitChecks
+    .flatMap(check => check.spacingViolations)
+    .find(v => v);
   /* WHY two clearance values: with referenceEnd toggle, holes can sit
    * near either end. We track which end is tight separately so the UI
    * can show "from start" vs "from end" instead of guessing. */
@@ -254,7 +307,7 @@ export default function useJobDerived({
   /* Determine which end is tight — used for the warning message so
    * operators know which side of the extrusion needs attention. */
   const tightEnd = minClearanceEnd <= minClearanceStart ? 'end' : 'start';
-  const canDownload = fits && hasOrderNumber && !isGcodeEmpty && slotPatternsSorted.length > 0;
+  const canDownload = fits && hasOrderNumber && !isGcodeEmpty && slotPatternsSorted.length > 0 && slotSpacingValid;
 
   const handleSaveToDrive = async () => {
     setSaveMessage('');
@@ -302,6 +355,8 @@ export default function useJobDerived({
     firstOverrun,
     minClearance,
     tightEnd,
+    slotSpacingValid,
+    firstSpacingViolation,
     canDownload,
     handleSaveToDrive,
     handleResetJob,
