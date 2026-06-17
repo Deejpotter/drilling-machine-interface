@@ -163,7 +163,20 @@ export default function useJobDerived({
       let hasDoubleHole = false;
       
       for (const pattern of slot.patterns) {
-        const basePositions = Array.from({ length: pattern.count }, (_, i) => {
+        const meta = HOLE_TYPES.find(h => h.id === pattern.holeType);
+        const isFixed = !!meta?.isFixedFitting;
+        /* WHY special-case fixed fittings in vizRows: Central Connector (16mm)
+         * and Anchor Fast (18mm) ignore fromEnd/count/spacing. Always
+         * produce exactly one hole at the fixed offset from the chosen end.
+         * Without this, the viz would plot count copies using the stale
+         * pattern.fromEnd values and produce wrong positions. */
+        const count = isFixed ? 1 : pattern.count;
+        const basePositions = Array.from({ length: count }, (_, i) => {
+          if (isFixed) {
+            return pattern.referenceEnd === 'end'
+              ? materialLength - meta.fixedOffsetMm
+              : meta.fixedOffsetMm;
+          }
           return pattern.referenceEnd === 'end'
             ? materialLength - pattern.fromEnd - i * pattern.spacing
             : pattern.fromEnd + i * pattern.spacing;
