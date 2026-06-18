@@ -117,8 +117,8 @@ describe('G-code Generator', () => {
       ],
     };
     const gcode = generateGcode(job);
-    // single-hole slot2 = P4210
-    expect(gcode).toContain('M98 P4210');
+    // single-hole slot2 = P4110 (no more P42xx!)
+    expect(gcode).toContain('M98 P4110');
   });
 
   it('finishes with M30 program end', () => {

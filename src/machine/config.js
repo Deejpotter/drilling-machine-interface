@@ -337,27 +337,27 @@ export const HOLE_TYPE_SKUS = {
 export const MACRO_CALLS = {
   'single-hole': {
     slot1: { p: '4110', comment: 'F1S1 Single hole (7mm)' },
-    slot2: { p: '4210', comment: 'F1S2 Single hole (7mm)' },
+    slot2: { p: '4110', comment: 'F1S2 Single hole (7mm)' },
   },
   'double-hole': {
     slot1: { p: '4111', comment: 'F1S1 Double hole (7mm)' },
-    slot2: { p: '4211', comment: 'F1S2 Double hole (7mm)' },
+    slot2: { p: '4111', comment: 'F1S2 Double hole (7mm)' },
   },
   'slotted-hole': {
     slot1: { p: '4112', comment: 'F1S1 Slotted hole (7mm)' },
-    slot2: { p: '4212', comment: 'F1S2 Slotted hole (7mm)' },
+    slot2: { p: '4112', comment: 'F1S2 Slotted hole (7mm)' },
   },
   'm8-counterbore': {
     slot1: { p: '4108', comment: 'F1S1 M8 Counterbore' },
-    slot2: { p: '4208', comment: 'F1S2 M8 Counterbore' },
+    slot2: { p: '4108', comment: 'F1S2 M8 Counterbore' },
   },
   'central-connector': {
     slot1: { p: '4150', comment: 'F1S1 Central Connector' },
-    slot2: { p: '4250', comment: 'F1S2 Central Connector' },
+    slot2: { p: '4150', comment: 'F1S2 Central Connector' },
   },
   'anchor-fast': {
     slot1: { p: '4151', comment: 'F1S1 Anchor Fast' },
-    slot2: { p: '4251', comment: 'F1S2 Anchor Fast' },
+    slot2: { p: '4151', comment: 'F1S2 Anchor Fast' },
   },
 };
 
