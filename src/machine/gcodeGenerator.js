@@ -156,11 +156,7 @@ export function generateGcode(job) {
     // 3. For each hole: move, set offset, drill
     // ----------------------------------------------------------------
     for (const hole of holes) {
-      /* Double-hole is handled by Patch as two separate single-hole
-       * operations spaced 40mm apart. The data model already expands
-       * the pattern into two distinct Y positions, so we just call
-       * the single-hole macro (P4110/P4210) at each position. */
-      const macroType = hole.holeType === 'double-hole' ? 'single-hole' : hole.holeType;
+      const macroType = hole.holeType;
       const macroSet = MACRO_CALLS[macroType];
       if (!macroSet) continue;
       // Pick slot1 or slot2 P-number based on which slot we're drilling

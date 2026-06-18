@@ -344,7 +344,7 @@ describe('Drilling Machine App', () => {
     expect(screen.getByText(/overruns/)).toBeInTheDocument();
   });
 
-  it('double hole from end expands in correct direction', async () => {
+  it('double hole from end shows correct position in G-code', async () => {
     const { container } = render(<App />);
     const user = userEvent.setup();
     // Switch to FROM END
@@ -353,12 +353,12 @@ describe('Drilling Machine App', () => {
     // Set double hole type
     const row = getFirstPatternRow(container);
     fireEvent.change(row.holeTypeSelect, { target: { value: 'double-hole' } });
-    // Default fromEnd=20 on 1000mm: positions should be 980 and 940
+    // Default fromEnd=20 on 1000mm: position should be 980, and uses P4111
     // Check the G-code preview specifically (avoid the SVG position labels)
     const gcodePreview = container.querySelector('.gcode-preview');
     expect(gcodePreview).toBeTruthy();
     expect(gcodePreview.textContent).toContain('Y980.0');
-    expect(gcodePreview.textContent).toContain('Y940.0');
+    expect(gcodePreview.textContent).toContain('M98 P4111');
   });
 
   it('local storage migration adds referenceEnd to old patterns', () => {

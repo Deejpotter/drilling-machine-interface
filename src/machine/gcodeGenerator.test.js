@@ -158,16 +158,12 @@ describe('G-code Generator', () => {
       }],
     };
     const gcode = generateGcode(job);
-    // single-hole and double-hole both call P4110 (double is just two single holes)
     expect(gcode).toContain('M98 P4110'); // single-hole slot1
-    expect(gcode).not.toContain('M98 P4111'); // double-hole uses P4110, not P4111
+    expect(gcode).toContain('M98 P4111'); // double-hole slot1
     expect(gcode).toContain('M98 P4112'); // slotted-hole slot1
     expect(gcode).toContain('M98 P4108'); // m8-counterbore slot1
     expect(gcode).toContain('M98 P4150'); // central-connector slot1
     expect(gcode).toContain('M98 P4151'); // anchor-fast slot1
-    // double-hole should produce two P4110 calls (one for each hole)
-    const p4110Matches = gcode.match(/M98 P4110/g) || [];
-    expect(p4110Matches.length).toBeGreaterThanOrEqual(2);
   });
 
   it('emits ASCII-only output (no box-drawing characters)', () => {

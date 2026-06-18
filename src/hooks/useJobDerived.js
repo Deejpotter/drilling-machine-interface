@@ -31,9 +31,7 @@ export default function useJobDerived({
     const dateStr = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getFullYear()).slice(2)}`; // DDMMYY
     const fallbackStamp = `${now.toISOString().slice(11,19).replace(/:/g,'')}${String(now.getMilliseconds()).padStart(3, '0')}`;
     const repSuffix = repetitions > 1 ? ` ×${repetitions}` : '';
-    const name = orderNumber.trim() 
-      ? `${orderNumber.trim()}-${profile.name.replace(/×/g, 'x')}_1-F${faceNumber}${repSuffix}-${dateStr}`
-      : `drill-job-${fallbackStamp}-${profile.name.replace(/×/g, 'x')}_1-F${faceNumber}${repSuffix}-${dateStr}`;
+    const name = `${orderNumber.trim()}-${profile.name.replace(/×/g, 'x')}_1-F${faceNumber}${repSuffix}-${dateStr}`;
 
     /* ── Position resolution ────────────────────────────────────────
      * The UI lets operators measure from either end for convenience,
@@ -96,19 +94,11 @@ export default function useJobDerived({
             operationIndex: patternIndex,
             holes: (() => {
               const count = isFixed ? 1 : pattern.count;
-              const base = Array.from({ length: count }, (_, i) => ({
+              return Array.from({ length: count }, (_, i) => ({
                 step: i + 1,
                 holeType: pattern.holeType,
                 distance_from_end_mm: resolvePosition(pattern, i),
               }));
-              /* Double-hole: emit two holes per pattern position,
-               * spaced 40mm apart (matches HARD-40S-4080-END-FAST-A). */
-              if (pattern.holeType === 'double-hole') {
-                return base.flatMap(h => pattern.referenceEnd === 'end'
-                  ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
-                  : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
-              }
-              return base;
             })(),
           };
         });
@@ -118,19 +108,13 @@ export default function useJobDerived({
           const meta = HOLE_TYPES.find(h => h.id === pattern.holeType);
           const isFixed = !!meta?.isFixedFitting;
           const count = isFixed ? 1 : pattern.count;
-          const base = Array.from({ length: count }, (_, i) => ({
+          return Array.from({ length: count }, (_, i) => ({
             step: i + 1,
             holeType: pattern.holeType,
             distance_from_end_mm: resolvePosition(pattern, i),
             slot: slot.slotId,
             patternId: pattern.id,
           }));
-          if (pattern.holeType === 'double-hole') {
-            return base.flatMap(h => pattern.referenceEnd === 'end'
-              ? [h, { ...h, distance_from_end_mm: h.distance_from_end_mm - 40 }]
-              : [h, { ...h, distance_from_end_mm: h.distance_from_end_mm + 40 }]);
-          }
-          return base;
         })
       ),
     };
